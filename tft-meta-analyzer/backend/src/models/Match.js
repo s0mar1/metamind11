@@ -1,10 +1,20 @@
-const mongoose = require('./db');
+// backend/src/models/Match.js
+import mongoose from 'mongoose';
 
 const MatchSchema = new mongoose.Schema({
-  matchId: { type: String, required: true, unique: true },
-  participants: { type: Array, default: [] },
-  gameDuration: Number,
-  metadata: Object
-}, { timestamps: true });
+  'metadata.match_id': {
+    type: String,
+    unique: true,
+    required: false, 
+    sparse: true,    
+  },
+  metadata: { type: Object },
+  info: { type: Object }
+}, {
+  strict: false,
+  timestamps: true,
+});
 
-module.exports = mongoose.model('Match', MatchSchema);
+const Match = mongoose.model('Match', MatchSchema);
+
+export default Match;
