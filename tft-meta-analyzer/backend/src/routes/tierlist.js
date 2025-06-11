@@ -5,7 +5,7 @@ const router = express.Router();
 
 router.get('/', async (req, res, next) => {
   try {
-     const tiers = await DeckTier.find({ totalGames: { $gte: 3 } }) // 최소 3판 이상
+    const tiers = await DeckTier.find({ totalGames: { $gte: 3 } })
       .sort({ tierOrder: 1, averagePlacement: 1 }) // 티어 순, 다음으로 평균등수 순 정렬
       .limit(30);
     res.json(tiers);
