@@ -1,3 +1,4 @@
+// frontend/src/pages/tierlist/TierListPage.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios'; 
 
@@ -158,7 +159,7 @@ function TierListPage() {
     borderRadius: '4px',
   };
 
-  // 챔피언 한글 이름 -> API 이름 매핑 (누락된 콤마 및 구문 오류 수정)
+  // 챔피언 한글 이름 -> API 이름 매핑 (중복 제거)
   const championApiNameMap = {
     "나피리": "naafiri", "나미": "nami", "나서스": "nasus", "닐라": "nilah", "녹턴": "nocturne",
     "누누와윌럼프": "nunu", "다리우스": "darius", "다이애나": "diana", "드레이븐": "draven",
@@ -170,7 +171,7 @@ function TierListPage() {
     "베인": "vayne", "벨베스": "belveth", "브라움": "braum", "브랜드": "brand",
     "블라디미르": "vladimir", "블리츠크랭크": "blitzcrank", "사미라": "samira", "샤코": "shaco",
     "세나": "senna", "세라핀": "seraphine", "세트": "sett", "소나": "sona",
-    "쉔": "shen", "쉬바나": "shyvana", // <-- 이 줄의 구문 오류를 수정했습니다.
+    "쉔": "shen", "쉬바나": "shyvana", 
     "스웨인": "swain", "시비르": "sivir",
     "신드라": "syndra", "신지드": "singed", "쓰레쉬": "thresh", "아리": "ahri",
     "아우렐리온솔": "aurelionsol", "아이번": "ivern", "아트록스": "aatrox", "아펠리오스": "aphelios",
@@ -192,47 +193,15 @@ function TierListPage() {
     "케이틀린": "caitlyn", 
     "키아나": "qiyana", 
     "킨드레드": "kindred", 
-    "신짜오": "xinzhao", 
     "세주아니": "sejuani", 
-    "요미": "yuumi", 
-    "리신": "leesin", 
-    "브랜드": "brand", 
-    "제드": "zed", 
-    "조이": "zoe", 
-    "아칼리": "akali", 
-    "렉사이": "reksai", 
-    "라이즈": "ryze", 
-    "타릭": "taric", 
-    "오른": "orn", 
-    "베이가": "veigar", 
-    "아우렐리온 솔": "aurelionsol", 
-    "신드라": "syndra", 
-    "워윅": "warwick", 
-    "제라스": "xerath", 
-    "요릭": "yorick", 
-    "질리언": "zilean", 
-    "아지르": "azir", 
-    "블리츠크랭크": "blitzcrank", 
-    "브라움": "braum", 
-    "아이번": "ivern", 
-    "자르반 4세": "jarvaniv", 
     "룰루": "lulu", 
     "루시안": "lucian", 
-    "나미": "nami", 
     "노틸러스": "nautilus", 
     "오리아나": "orianna", 
-    "파이크": "pyke", 
-    "퀸": "quinn", 
     "라칸": "rakan", 
-    "럼블": "rumble", 
     "사이온": "sion", 
-    "트리스타나": "tristana", 
     "볼리베어": "volibear", 
-    "신짜오": "xinzhao", 
     "아무무": "amumu", 
-    "애니": "annie", 
-    "애쉬": "ashe", 
-    "블라디미르": "vladimir", 
     "가렌": "garen", 
     "나르": "gnar", 
     "갱플랭크": "gangplank", 

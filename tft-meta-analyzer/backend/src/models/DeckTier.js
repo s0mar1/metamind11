@@ -8,6 +8,10 @@ const DeckTierSchema = new mongoose.Schema({
     unique: true,
   },
   carryChampionName: { type: String, required: true },
+  // 🚨🚨🚨 새로 추가하는 필드 🚨🚨🚨
+  carryChampionApiName: { type: String, required: false }, // 챔피언 API 이름 추가
+  carryChampionImageUrl: { type: String, required: false }, // 챔피언 이미지 URL 추가
+  // 🚨🚨🚨 여기까지 🚨🚨🚨
   traits: [{
     name: String,
     tier_current: Number,

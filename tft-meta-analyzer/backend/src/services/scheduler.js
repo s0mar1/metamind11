@@ -4,7 +4,11 @@ import cron from 'node-cron';
 import { getChallengerLeague, getMatchIdsByPUUID, getMatchDetail } from './riotApi.js';
 import Match from '../models/Match.js';
 import DeckTier from '../models/DeckTier.js';
-import { loadTFTData, getCDNImageUrl } from './tftData.js'; // tftData 서비스 임포트
+import { loadTFTData, getCDNImageUrl } from './tftData.js';
+import { collectMatches } from '../../jobs/matchCollector.js';
+
+// 🚨 NEW: 현재 분석할 패치 버전 (수동 업데이트 필요)
+const LATEST_PATCH_VERSION = "14.16"; 
 
 // ... (fetchWithRetry, delay 함수는 그대로 둡니다.) ...
 
@@ -42,15 +46,24 @@ const analyzeAndCacheDeckTiers = async () => {
   console.log('--- [고도화] 덱 티어리스트 분석 작업 시작 ---');
   try {
     const tftData = await loadTFTData(); // TFT 데이터 로드
-    if (!tftData) {
+    if (!tftData || !tftData.currentSet) {
         console.error('TFT 데이터를 불러오지 못해 덱 분석을 건너뛰었습니다.');
         return;
     }
+    const currentSet = tftData.currentSet; // 현재 세트 정보
 
-    const allMatches = await Match.find({}); 
-    console.log(`[디버깅] DB에서 불러온 총 매치 수: ${allMatches.length}`); 
+    // 🚨 NEW: 현재 세트 및 LATEST_PATCH_VERSION 이후의 매치만 불러오도록 필터 추가
+    // match.metadata.data_version이 '14.x.x' 형태이므로, 시작하는 부분으로 필터링
+    const allMatches = await Match.find({
+        'metadata.data_version': {
+            $regex: `^${currentSet}\\.`, // 현재 세트 필터 (예: '14.')
+            $gte: `${currentSet}.${LATEST_PATCH_VERSION}` // 특정 패치 버전 이상 (예: '14.16')
+        }
+    });
+    
+    console.log(`[디버깅] DB에서 불러온 총 매치 수 (세트 ${currentSet}, 패치 ${LATEST_PATCH_VERSION} 필터링 후): ${allMatches.length}`); 
     if (allMatches.length === 0) {
-        console.log("[디버깅] DB에 매치 데이터가 없습니다. collectRankerData가 제대로 작동하는지 확인하세요."); 
+        console.log("[디버깅] DB에 현재 세트/패치 매치 데이터가 없습니다. collectMatches가 제대로 작동하는지 확인하고 데이터 수집을 기다려주세요."); 
     }
     
     const deckStats = {}; 
@@ -98,6 +111,10 @@ const analyzeAndCacheDeckTiers = async () => {
         }
         // 캐리 챔피언 이름은 이제 tftData에서 가져온 한글 이름 사용
         const carryChampionDisplayName = selectedCarryChampInfo ? selectedCarryChampInfo.name : cleanTFTName(carryUnit.character_id);
+        // 🚨 NEW: 캐리 챔피언 API 이름과 이미지 URL 가져오기
+        const carryChampionApiName = selectedCarryChampInfo ? selectedCarryChampInfo.apiName : null;
+        const carryChampionImageUrl = selectedCarryChampInfo?.tileIcon ? getCDNImageUrl(selectedCarryChampInfo.tileIcon) : null;
+
         console.log(`[디버깅] 캐리 유닛 선정됨: ${carryChampionDisplayName} (아이템 ${carryUnit.items?.length || 0}개)`); 
 
 
@@ -135,6 +152,9 @@ const analyzeAndCacheDeckTiers = async () => {
           deckStats[deckKey] = {
             traits: activeTraits.map(t => ({ name: t.name, tier_current: t.tier_current, image_url: t.image_url })), 
             carryChampionName: 'Unknown', 
+            // 🚨 NEW: carryChampionApiName과 carryChampionImageUrl 필드 추가
+            carryChampionApiName: null,
+            carryChampionImageUrl: null,
             totalGames: 0,
             totalPlacement: 0,
             top4Count: 0,
@@ -147,6 +167,10 @@ const analyzeAndCacheDeckTiers = async () => {
         stats.totalPlacement += p.placement;
         if (p.placement <= 4) stats.top4Count += 1; 
         if (p.placement === 1) stats.winCount += 1;
+
+        // 🚨 NEW: 덱 통계에 carryChampionApiName과 carryChampionImageUrl 저장
+        stats.carryChampionApiName = carryChampionApiName;
+        stats.carryChampionImageUrl = carryChampionImageUrl;
 
         // --- 캐리 챔피언 통계 누적 (덱 키 별로) --- 
         stats.carryChampionCounts[carryChampionDisplayName] = (stats.carryChampionCounts[carryChampionDisplayName] || 0) + 1;
@@ -167,6 +191,9 @@ const analyzeAndCacheDeckTiers = async () => {
       }
 
       let finalCarryChampionName = 'Unknown';
+      let finalCarryChampionApiName = stats.carryChampionApiName; 
+      let finalCarryChampionImageUrl = stats.carryChampionImageUrl; 
+
       let maxCount = 0;
       for (const champName in stats.carryChampionCounts) {
           if (stats.carryChampionCounts[champName] > maxCount) {
@@ -179,6 +206,8 @@ const analyzeAndCacheDeckTiers = async () => {
         { deckKey: key },
         {
           carryChampionName: finalCarryChampionName, 
+          carryChampionApiName: finalCarryChampionApiName, 
+          carryChampionImageUrl: finalCarryChampionImageUrl, 
           traits: stats.traits, 
           totalGames: stats.totalGames,
           top4Count: stats.top4Count,
@@ -188,7 +217,7 @@ const analyzeAndCacheDeckTiers = async () => {
         },
         { upsert: true, new: true } 
       );
-      console.log(`> 성공: 덱 티어 ${key} 를 DB에 저장/업데이트했습니다. 캐리: ${finalCarryChampionName}`);
+      console.log(`> 성공: 덱 티어 ${key} 를 DB에 저장/업데이트했습니다. 캐리: ${finalCarryChampionName} (API: ${finalCarryChampionApiName})`);
     }
     console.log('--- [고도화] 덱 티어리스트 분석 및 저장 완료 ---\n');
 
@@ -198,11 +227,16 @@ const analyzeAndCacheDeckTiers = async () => {
 };
 
 // ... (cron 스케줄 및 서버 시작 시 실행 로직은 그대로 둡니다.) ...
+// 스케줄러의 collectMatches 호출은 그대로 둡니다.
+
+// ... (cron 스케줄 및 서버 시작 시 실행 로직은 그대로 둡니다.) ...
+// 스케줄러의 collectMatches 호출은 그대로 둡니다.
+// ... (cron 스케줄 및 서버 시작 시 실행 로직은 그대로 둡니다.) ...
 
 // 매일 오전 5시에 랭커 데이터 수집 실행
 cron.schedule('0 5 * * *', () => {
   console.log('정해진 시간(오전 5시)이 되어 랭커 데이터 수집을 시작합니다.');
-  collectRankerData();
+  collectMatches(); // 🚨🚨🚨 collectRankerData 대신 collectMatches로 변경 🚨🚨🚨
 }, {
   scheduled: true,
   timezone: "Asia/Seoul"
@@ -216,5 +250,5 @@ cron.schedule('0 */1 * * *', () => {
 
 // 서버가 시작될 때 테스트를 위해 즉시 1번씩 실행
 console.log('서버 시작. 테스트를 위해 데이터 수집 및 분석을 1회 실행합니다.');
-collectRankerData();
+collectMatches(); // 🚨🚨🚨 collectRankerData 대신 collectMatches로 변경 🚨🚨🚨
 setTimeout(analyzeAndCacheDeckTiers, 30000);

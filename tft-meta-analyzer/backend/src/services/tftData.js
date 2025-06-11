@@ -15,6 +15,7 @@ async function loadTFTData() {
       items: response.data.items,
       champions: response.data.sets[currentSet].champions,
       traits: response.data.sets[currentSet].traits,
+      currentSet: currentSet, // 🚨 NEW: tftData 객체에 currentSet 추가
     };
     console.log(`(TFT Data Service) TFT 시즌 ${currentSet} 데이터 로딩 성공!`);
     return tftData;
