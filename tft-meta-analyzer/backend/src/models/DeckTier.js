@@ -1,45 +1,33 @@
-// backend/src/models/DeckTier.js
 import mongoose from 'mongoose';
 
 const DeckTierSchema = new mongoose.Schema({
-  deckKey: {
-    type: String,
-    required: true,
-    unique: true,
-  },
+  deckKey: { type: String, required: true, unique: true },
+  tierRank: { type: String },
+  tierOrder: { type: Number }, // S=1, A=2... 정렬을 위한 필드
   carryChampionName: { type: String, required: true },
-  // 🚨🚨🚨 새로 추가하는 필드 🚨🚨🚨
-  carryChampionApiName: { type: String, required: false }, // 챔피언 API 이름 추가
-  carryChampionImageUrl: { type: String, required: false }, // 챔피언 이미지 URL 추가
-  // 🚨🚨🚨 여기까지 🚨🚨🚨
-  traits: [{
+  mainTraitName: { type: String },
+  
+  // ⬇️⬇️⬇️ UI에 필요한 모든 정보를 담을 필드들 ⬇️⬇️⬇️
+  coreUnits: [{
     name: String,
-    tier_current: Number,
-    image_url: String, // 이미지 URL 필드
+    apiName: String,
+    image_url: String,
+    cost: Number,
+    // 각 유닛별 추천 아이템 3개
+    recommendedItems: [{
+        name: String,
+        image_url: String,
+    }]
   }],
-  top4Count: {
-    type: Number,
-    default: 0,
-  },
-  totalGames: {
-    type: Number,
-    default: 0,
-  },
-  averagePlacement: {
-    type: Number,
-    default: 0,
-  },
-  winCount: {
-    type: Number,
-    default: 0,
-  },
-  tierRank: { 
-    type: String,
-    required: false,
-  },
-}, {
-  timestamps: true,
-});
+  
+  totalGames: { type: Number, default: 0 },
+  top4Count: { type: Number, default: 0 },
+  winCount: { type: Number, default: 0 },
+  averagePlacement: { type: Number, default: 0 },
+}, { timestamps: true });
+
+// 티어 순서, 평균 등수 순으로 인덱스를 만들어 조회 속도를 향상시킵니다.
+DeckTierSchema.index({ tierOrder: 1, averagePlacement: 1 });
 
 const DeckTier = mongoose.model('DeckTier', DeckTierSchema);
 

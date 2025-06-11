@@ -8,6 +8,7 @@ import errorHandler from './middlewares/errorHandler.js';
 import './services/scheduler.js';
 import connectDB from './config/db.js';
 import tierlistRoutes from './routes/tierlist.js';
+import rankingRoutes from './routes/ranking.js';
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.use('/api/match', matchRoutes);
 app.use('/api/ai', aiRoutes); // ⬅️ 추가된 부분
 app.use('/api/tierlist', tierlistRoutes);
 app.use('/api/deck-tiers', tierlistRoutes); 
+app.use('/api/ranking', rankingRoutes);
 
 app.get('/', (req, res) => {
   res.send('TFT Meta Analyzer Backend is running!');
