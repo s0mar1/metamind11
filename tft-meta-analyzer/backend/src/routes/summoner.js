@@ -1,120 +1,113 @@
+/* -------------------------------------------------------------------------- */
+/*  MetaMind TFT – 소환사 상세 API                                            */
+/* -------------------------------------------------------------------------- */
 import express from 'express';
-import { getAccountByRiotId, getSummonerByPuuid, getLeagueEntriesBySummonerId, getMatchIdsByPUUID, getMatchDetail } from '../services/riotApi.js';
-import getTFTData from '../services/tftData.js';
-import NodeCache from 'node-cache';
+import cache   from 'memory-cache';
+
+import {
+  getAccountByRiotId,
+  getMatchIdsByPUUID,
+  getMatchDetail,
+} from '../services/riotApi.js';
+
+import getTFTData     from '../services/tftData.js';
+import { formatMatch } from '../utils/formatMatch.js';
 
 const router = express.Router();
-const cache = new NodeCache({ stdTTL: 600 }); // 10분 캐시
 
-router.get('/', async (req, res, next) => {
-  const { region, gameName, tagLine, forceRefresh } = req.query;
+/* GET /summoner?name=닉네임&tag=KR1&forceRefresh=true */
+ router.get('/', async (req, res) => {
+   /* gameName / tagLine 로도 들어올 수 있으니 둘 다 체크 */
+     const gameName   = req.query.name || req.query.gameName;
+     const tagLine    = req.query.tag  || req.query.tagLine;
+     const forceRefresh = req.query.forceRefresh;
+   if (!gameName || !tagLine) {
+    // 클라이언트가 name, tag 둘 중 하나라도 안 보냈을 때 400 Bad Request 반환
+     return res.status(400).json({
+       error: 'Query params "name" and "tag" are both required. ' +
+             '예: /summoner?name=HideOnBush&tag=KR1',
+     });
+  }
   const cacheKey = `${gameName}#${tagLine}`;
 
-  if (forceRefresh !== 'true') {
-    const cachedData = cache.get(cacheKey);
-    if (cachedData) {
-      console.log(`INFO: Cache hit for ${cacheKey}. Returning cached data.`);
-      return res.json(cachedData);
-    }
-  }
-
-  console.log(`INFO: Cache miss or force refresh for ${cacheKey}. Fetching from Riot API.`);
-  
   try {
-    const tftData = await getTFTData();
-    if (!tftData) {
-      return res.status(503).json({ error: 'TFT 데이터를 로딩할 수 없습니다.' });
+    /* 1) 캐시 */
+    if (!forceRefresh && cache.get(cacheKey)) {
+      return res.json(cache.get(cacheKey));
     }
 
-    const account = await getAccountByRiotId(gameName, tagLine);
-    const { puuid } = account;
-    
-    const summonerData = await getSummonerByPuuid(puuid);
-    const leagueEntry = await getLeagueEntriesBySummonerId(summonerData.id);
-    const matchIds = await getMatchIdsByPUUID(puuid, 10);
-    
-    let processedMatches = [];
+    /* 2) 프로필(PUUID) */
+    let profile;
+    try {
+      profile = await getAccountByRiotId(gameName, tagLine);
+    } catch (e) {
+      if (e.response?.status === 404) {
+        return res.status(404).json({ error: 'Summoner not found' });
+      }
+      throw e;
+    }
+    const { puuid } = profile;
 
-    if (matchIds && matchIds.length > 0) {
-      const matchDetails = await Promise.all(
-        matchIds.map(matchId => getMatchDetail(matchId).catch(e => null))
-      );
+    /* 3) 매치 ID */
+    const matchIds = await getMatchIdsByPUUID(puuid, 5);
 
-      processedMatches = matchDetails.filter(Boolean).map(match => {
-        const participant = match.info.participants.find(p => p.puuid === puuid);
-        if (!participant) return null;
-        
-        const cdnBaseUrl = 'https://raw.communitydragon.org/latest/game/';
-        
-        const units = participant.units.map(unit => {
-          const champInfo = tftData.champions.find(c => c.apiName.toLowerCase() === unit.character_id.toLowerCase());
-          return {
-            name: champInfo?.name || unit.character_id,
-            image_url: champInfo?.tileIcon ? `${cdnBaseUrl}${champInfo.tileIcon.toLowerCase().replace('.tex', '.png')}` : null,
-            tier: unit.tier,
-            cost: champInfo?.cost || 0,
-            items: unit.itemNames.map(itemName => {
-              const itemInfo = tftData.items.find(i => i.apiName.toLowerCase() === itemName.toLowerCase());
-              return { name: itemInfo?.name || '', image_url: itemInfo?.icon ? `${cdnBaseUrl}${itemInfo.icon.toLowerCase().replace('.tex', '.png')}` : null };
-            })
-          };
-        });
+    /* 4) 매치 상세 + TFT 데이터 병렬 */
+    const [rawMatches, tftData] = await Promise.all([
+      Promise.all(matchIds.map((id) => getMatchDetail(id))),
+      getTFTData(), // { traits, champions, items, currentSet }
+    ]);
+    const { traits: traitMeta, currentSet } = tftData;
+    const cdnBaseUrl = `https://cdn.communitydragon.org/${currentSet}`;
 
-        const traits = participant.traits.map(t => {
-            const traitInfo = tftData.traits.find(dt => dt.apiName.toLowerCase() === t.name.toLowerCase());
-            if (!traitInfo || !traitInfo.sets) return null;
+    /* 5) 매치 가공 */
+    const styleOrderMap = { bronze: 1, silver: 2, gold: 3, chromatic: 4, prismatic: 4 };
 
-            let styleName = 'none';
-            const styleOrderMap = { bronze: 1, silver: 2, gold: 3, chromatic: 4, prismatic: 4 };
-            let styleOrder = 0;
+    const matches = rawMatches.map((match) => {
+      const info        = match.info;
+      const participant = info.participants.find((p) => p.puuid === puuid);
 
-            for (const set of traitInfo.sets) {
-                if (t.num_units >= set.min) {
-                    styleName = set.style.toLowerCase();
-                    styleOrder = styleOrderMap[styleName] || 0;
-                }
+      /* 특성(시너지) 매핑 */
+      const traits = participant.traits
+        .map((t) => {
+          const meta = traitMeta.find(
+            (m) => m.apiName.toLowerCase() === t.name.toLowerCase(),
+          );
+          if (!meta) return null;
+
+          const levels = meta.sets || meta.levels || meta.tiers || [];
+          let styleName = 'none';
+          let styleOrder = 0;
+
+          for (const lv of levels) {
+            if (t.num_units >= lv.min) {
+              styleName  = lv.style.toLowerCase();
+              styleOrder = styleOrderMap[styleName] || 0;
             }
+          }
+          if (styleOrder === 0) return null;
 
-            if (styleOrder === 0) return null;
+          return {
+            name: meta.name,
+            image_url: meta.icon
+              ? `${cdnBaseUrl}${meta.icon.toLowerCase().replace('.tex', '.png')}`
+              : null,
+            tier_current: t.num_units,
+            style      : styleName,
+            styleOrder,
+          };
+        })
+        .filter(Boolean);
 
-            return {
-                name: traitInfo.name,
-                image_url: traitInfo.icon ? `${cdnBaseUrl}${traitInfo.icon.toLowerCase().replace('.tex', '.png')}` : null,
-                tier_current: t.num_units,
-                style: styleName,
-                styleOrder: styleOrder,
- traitInfo.name,
-                image_url: traitInfo.icon ? `${cdnBaseUrl}${traitInfo.icon.toLowerCase().replace('.tex', '.png')}` : null,
-                tier_current: t.num_units,
-                style: styleOrder, // 숫자 등급
-            };
-        }).filter(t => t && t.style > 0);
+      return formatMatch(info, participant, traits, cdnBaseUrl);
+    });
 
-        return {
-          matchId: match.metadata.match_id,
-          game_datetime: match.info.game_datetime,
-          placement: participant.placement,
-          last_round: participant.last_round,
-          level: participant.level,
-          units,
-          traits,
-        };
-      }).filter(Boolean);
-    }
-
-    const finalData = { 
-      account: { ...account, ...summonerData },
-      league: leagueEntry, 
-      matches: processedMatches 
-    };
-
-    cache.set(cacheKey, finalData);
-    console.log(`INFO: New data for ${cacheKey} saved to cache.`);
-    
-    res.json(finalData);
-
-  } catch (error) {
-    next(error);
+    /* 6) 응답 + 캐싱 */
+    const payload = { profile, matches };
+    cache.put(cacheKey, payload, 1000 * 60 * 5);
+    res.json(payload);
+  } catch (err) {
+    console.error('[summoner] error:', err);
+    res.status(500).json({ error: 'Failed to fetch summoner data' });
   }
 });
 

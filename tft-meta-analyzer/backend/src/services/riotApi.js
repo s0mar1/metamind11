@@ -17,7 +17,7 @@ const api = axios.create({
 
 export const getAccountByRiotId = async (gameName, tagLine) => {
   const apiRegion = 'asia';
-  const url = `https://${apiRegion}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${gameName}/${tagLine}`;
+  const url = `https://${apiRegion}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName.trim())}/${encodeURIComponent(tagLine.trim())}`;
   const response = await api.get(url);
   return response.data;
 };
