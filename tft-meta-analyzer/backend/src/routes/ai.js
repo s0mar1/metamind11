@@ -1,9 +1,10 @@
 // backend/src/routes/ai.js
 import express from 'express';
-import axios from 'axios';
 import { getMatchDetail } from '../services/riotApi.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import DeckTier from '../models/DeckTier.js'; // DeckTier 모델 import
+import DeckTier from '../models/DeckTier.js';
+// ⭐️ 수정된 부분: 함수 이름을 getTFTData (대문자 T)로 정확하게 import 합니다.
+import getTFTData from '../services/tftData.js';
 
 const router = express.Router();
 
@@ -15,47 +16,28 @@ if (!GOOGLE_AI_API_KEY) {
 const genAI = new GoogleGenerativeAI(GOOGLE_AI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
-
-// --- 데이터 드래곤 로딩 로직 (변경 없음) ---
-let tftData = null;
-const TFT_DATA_URL = 'https://raw.communitydragon.org/latest/cdragon/tft/ko_kr.json';
-async function loadTFTData() {
-  if (tftData) return;
-  try {
-    console.log('(AI Route) 최신 TFT 데이터를 불러오는 중입니다...');
-    const response = await axios.get(TFT_DATA_URL);
-    const currentSet = '14';
-    tftData = {
-      items: response.data.items,
-      champions: response.data.sets[currentSet].champions,
-      traits: response.data.sets[currentSet].traits,
-    };
-    console.log(`(AI Route) TFT 시즌 ${currentSet} 데이터 로딩 성공!`);
-  } catch (error) {
-    console.error('(AI Route) TFT 데이터 로딩 실패:', error.message);
-  }
-}
-loadTFTData();
-
-
-// POST /api/ai/analyze
 router.post('/analyze', async (req, res, next) => {
   const { matchId, userPuuid } = req.body;
   if (!matchId || !userPuuid) { return res.status(400).json({ error: 'matchId와 userPuuid가 필요합니다.' }); }
 
   try {
-    // 1. 매치 상세 정보 및 사용자 정보 가져오기
+    // ⭐️ 수정된 부분: import한 이름과 동일하게 getTFTData()를 호출합니다.
+    const tftData = await getTFTData();
+    if (!tftData) {
+        throw new Error("TFT static data could not be loaded.");
+    }
+    
     const matchDetail = await getMatchDetail(matchId);
     const userParticipant = matchDetail.info.participants.find(p => p.puuid === userPuuid);
     if (!userParticipant) { return res.status(404).json({ error: '해당 게임에서 사용자를 찾을 수 없습니다.' }); }
 
-    // 2. AI에게 보낼 사용자 게임 데이터 및 다른 플레이어 데이터 가공하기
+    // (이하 데이터 가공 및 프롬프트 생성 로직은 동일)
+    // ...
     const placement = userParticipant.placement;
     const goldLeft = userParticipant.gold_left !== undefined ? userParticipant.gold_left : '정보 없음';
     const totalDamageToPlayers = userParticipant.total_damage_to_players !== undefined ? userParticipant.total_damage_to_players : '정보 없음';
     const lastRound = userParticipant.last_round !== undefined ? userParticipant.last_round : '정보 없음';
 
-    // 사용자 덱 정보 가공
     const userTraits = userParticipant.traits.filter(t => t.style > 0).map(t => {
         const traitInfo = tftData.traits.find(td => td.apiName.toLowerCase() === t.name.toLowerCase());
         return `${traitInfo ? traitInfo.name : t.name} (${t.tier_current})`;
@@ -68,13 +50,12 @@ router.post('/analyze', async (req, res, next) => {
         }).filter(Boolean);
         return `${champInfo ? champInfo.name : u.character_id} (${u.tier}성) [${itemNames.join(', ')}]`;
     }).join('\n');
-
-    // 🚨🚨🚨 다른 7명의 플레이어 덱 정보 가공 🚨🚨🚨
+    
     let otherParticipantsData = '';
     const otherParticipants = matchDetail.info.participants.filter(p => p.puuid !== userPuuid);
     if (otherParticipants.length > 0) {
         otherParticipantsData += "\n\n[다른 플레이어들의 최종 덱 정보]\n";
-        otherParticipants.forEach((p, index) => {
+        otherParticipants.forEach((p) => {
             const pTraits = p.traits.filter(t => t.style > 0).map(t => {
                 const traitInfo = tftData.traits.find(td => td.apiName.toLowerCase() === t.name.toLowerCase());
                 return `${traitInfo ? traitInfo.name : t.name} (${t.tier_current})`;
@@ -86,16 +67,15 @@ router.post('/analyze', async (req, res, next) => {
                     return itemInfo ? itemInfo.name : '';
                 }).filter(Boolean);
                 return `${champInfo ? champInfo.name : u.character_id} (${u.tier}성) [${itemNames.join(', ')}]`;
-            }).join(', '); // 한 줄로 표시하기 위해 콤마로 연결
+            }).join(', ');
 
             otherParticipantsData += ` - 플레이어 ${p.placement}위: 활성화 특성: ${pTraits} / 유닛: ${pUnits}\n`;
         });
     }
 
-    // 3. 메타 데이터(DeckTier)를 가져와 프롬프트에 추가
     const allMetaDecks = await DeckTier.find({ totalGames: { $gte: 3 } })
                                       .sort({ averagePlacement: 1 })
-                                      .limit(10); // 상위 10개 덱 정보 제공 (프롬프트 길이 관리)
+                                      .limit(10);
 
     let metaDataForAI = '';
     if (allMetaDecks.length > 0) {
@@ -112,7 +92,6 @@ router.post('/analyze', async (req, res, next) => {
       metaDataForAI += "\n※ 이 덱들은 현재 챌린저 유저들이 실제로 플레이하며 통계적으로 검증된 덱들입니다. 모든 덱은 잠재적으로 강력합니다.";
     }
 
-    // 4. Gemini AI에게 보낼 프롬프트(질문) 생성
     const prompt = `
       당신은 **현역 롤토체스 챌린저이자 최고의 전략 분석가**입니다.
       MetaMind의 실시간 챌린저 통계 데이터를 기반으로 플레이어의 게임을 분석합니다.
@@ -136,7 +115,7 @@ router.post('/analyze', async (req, res, next) => {
       - 최종 배치 유닛 및 아이템:
       ${userUnits}
 
-      ${otherParticipantsData} // 다른 플레이어 덱 정보 추가
+      ${otherParticipantsData}
 
       ${metaDataForAI}
 
@@ -144,21 +123,14 @@ router.post('/analyze', async (req, res, next) => {
       1. 잘한 점 (Good Point): 이 플레이어의 덱 구성, 아이템 활용, 또는 운영 판단에서 칭찬할 만한 점을 1~2가지 **챌린저의 관점에서** 찾아주세요.
       2. 아쉬운 점 (Improvement Point): 더 높은 등수를 위해 개선할 수 있었던 점을 1~2가지 **구체적인 전략적 대안과 함께** 제안해주세요. 특히, **남은 골드, 총 피해량** 데이터를 참고하여 경제 운영이나 고점 운영에 대한 통찰력을 추가하고, **다른 플레이어들의 덱과의 상성**을 고려한 피드백도 포함해주세요.
     `;
-
-    console.log("Gemini에게 분석을 요청합니다...");
     
-    // 5. Gemini API 호출
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const aiResponseText = response.text();
-
-    console.log("Gemini로부터 분석 결과를 받았습니다.");
-
-    // 6. AI 답변을 프론트엔드에 전달
+    
     res.json({ analysis: aiResponseText });
 
   } catch(error) {
-    console.error("AI 분석 중 에러 발생:", error);
     next(error);
   }
 });

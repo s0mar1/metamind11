@@ -1,9 +1,10 @@
+// backend/src/server.js
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import summonerRoutes from './routes/summoner.js';
 import matchRoutes from './routes/match.js';
-import aiRoutes from './routes/ai.js'; // ⬅️ 추가된 부분
+import aiRoutes from './routes/ai.js';
 import errorHandler from './middlewares/errorHandler.js';
 import './services/scheduler.js';
 import connectDB from './config/db.js';
@@ -22,8 +23,8 @@ app.use(express.json());
 // API 라우터
 app.use('/api/summoner', summonerRoutes);
 app.use('/api/match', matchRoutes);
-app.use('/api/ai', aiRoutes); // ⬅️ 추가된 부분
-app.use('/api/tierlist', tierlistRoutes);
+app.use('/api/ai', aiRoutes);
+// ⬇️ 중복 라우트 제거하고, 프론트엔드에서 사용하는 주소로 통일 
 app.use('/api/deck-tiers', tierlistRoutes); 
 app.use('/api/ranking', rankingRoutes);
 
