@@ -1,3 +1,4 @@
+// frontend/src/pages/tierlist/TierListPage.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -15,11 +16,46 @@ const styles = {
   deckName: { fontWeight: 'bold', fontSize: '1.1rem', color: '#2E2E2E' },
   traitName: { fontSize: '0.8rem', color: '#6E6E6E' },
   col2: { flexGrow: 1, display: 'flex', gap: '6px', alignItems: 'flex-start' },
-  unitWrapper: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', width: '52px' },
+  unitWrapper: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '4px',
+    width: '52px',
+    position: 'relative',
+  },
   unitImage: { width: '48px', height: '48px', borderRadius: '4px' },
   unitItems: { display: 'flex', justifyContent: 'center', gap: '1px', height: '16px', marginTop: '2px' },
   unitItemImage: { width: '16px', height: '16px', borderRadius: '2px' },
   unitName: { fontSize: '12px', color: '#6E6E6E', width: '100%', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  starBadge: { // 3성 기물용 작은 원형 뱃지
+    position: 'absolute',
+    top: '0px',
+    right: '0px',
+    backgroundColor: '#FFD700',
+    color: 'white',
+    fontSize: '0.8rem',
+    fontWeight: 'bold',
+    borderRadius: '50%',
+    width: '18px',
+    height: '18px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: '1px solid #C4A42C',
+    zIndex: 1,
+  },
+  carryStars: { // 캐리/서브캐리 기물용 별 등급 표시
+    position: 'absolute',
+    bottom: '0px',
+    width: '100%',
+    textAlign: 'center',
+    fontSize: '0.8rem', // 별 크기 조정
+    color: '#FFD700', // 골드 색상
+    fontWeight: 'bold',
+    textShadow: '0 0 2px black',
+    zIndex: 1,
+  },
   col3: { flexShrink: 0, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', textAlign: 'right', width: '280px', gap: '16px' },
   statValue: { fontWeight: 'bold', fontSize: '1.1rem', color: '#2E2E2E' },
   statLabel: { fontSize: '12px', color: '#6E6E6E' },
@@ -29,7 +65,7 @@ const styles = {
 
 // --- 헬퍼 함수 ---
 const getTierColor = (tierRank) => {
-  const colorMap = { S: '#E13434', A: '#B45AF3', B: '#2C98F0', C: '#20B359' };
+  const colorMap = { S: '#E13434', A: '#B45AF3', B: '#2C98F0', C: '#20B359', D: '#9E9E9E' };
   return colorMap[tierRank] || '#6E6E6E';
 };
 const getCostBorderStyle = (cost) => {
@@ -38,13 +74,22 @@ const getCostBorderStyle = (cost) => {
 };
 
 // --- 재사용 컴포넌트 ---
-const UnitWithItems = ({ unit }) => {
+const UnitWithItems = ({ unit, showItems, isMajorUnit }) => {
   if (!unit || !unit.image_url) return <div style={styles.unitWrapper}></div>;
+
+  const displayedItems = showItems ? unit.recommendedItems?.slice(0, 3) : [];
+
   return (
     <div style={styles.unitWrapper}>
       <img src={unit.image_url} alt={unit.name} title={unit.name} style={{ ...styles.unitImage, ...getCostBorderStyle(unit.cost) }}/>
+      {unit.tier === 3 && ( // 3성 기물은 항상 작은 원형 뱃지 표시
+        <div style={styles.starBadge}>★</div>
+      )}
+      {isMajorUnit && unit.tier > 0 && ( // isMajorUnit이 true이고 1성 이상일 때만 별 등급 표시
+        <div style={styles.carryStars}>{'★'.repeat(unit.tier)}</div>
+      )}
       <div style={styles.unitItems}>
-        {unit.recommendedItems?.slice(0, 3).map((item, index) =>
+        {displayedItems.map((item, index) =>
           item.image_url && <img key={index} src={item.image_url} alt={item.name} title={item.name} style={styles.unitItemImage} />
         )}
       </div>
@@ -57,6 +102,52 @@ const DeckCard = ({ deck }) => {
   const tierColor = getTierColor(deck.tierRank);
   const top4Rate = deck.totalGames > 0 ? ((deck.top4Count / deck.totalGames) * 100).toFixed(1) : 0;
   const winRate = deck.totalGames > 0 ? ((deck.winCount / deck.totalGames) * 100).toFixed(1) : 0;
+
+  // coreUnits를 정렬: 캐리 챔피언이 맨 앞, 그 다음 코스트 오름차순, 같은 코스트 내 티어 내림차순
+  const sortedCoreUnits = [...(deck.coreUnits || [])].sort((a, b) => {
+    // 1. 캐리 챔피언을 최우선으로 배치
+    const isA_Carry = a.name === deck.carryChampionName;
+    const isB_Carry = b.name === deck.carryChampionName;
+
+    if (isA_Carry && !isB_Carry) return -1;
+    if (!isA_Carry && isB_Carry) return 1;
+
+    // 2. 캐리가 아니라면 코스트 오름차순 (1코스트 -> 5코스트)
+    if (a.cost !== b.cost) {
+      return a.cost - b.cost;
+    }
+    // 3. 같은 코스트 내에서는 티어(성) 내림차순 (3성 -> 2성 -> 1성)
+    return b.tier - a.tier;
+  });
+
+  // 아이템 및 별 등급 표시를 위한 핵심 유닛 선정 로직 (최대 3명)
+  // 1. 캐리 챔피언
+  // 2. 나머지 유닛 중 4코스트 챔피언 (최대 2명 추가)
+  // 3. 4코스트 챔피언이 부족하면 그 외의 고코스트/고티어 챔피언
+  const majorUnitsToShowItemsAndStars = new Set();
+  
+  // 1. 캐리 챔피언 추가 (만약 있다면)
+  const carryUnit = sortedCoreUnits.find(unit => unit.name === deck.carryChampionName);
+  if (carryUnit) {
+    majorUnitsToShowItemsAndStars.add(carryUnit.apiName);
+  }
+
+  // 2. 캐리가 아닌 4코스트 챔피언 중 최대 2명 추가
+  const nonCarry4CostUnits = sortedCoreUnits.filter(unit => 
+    unit.cost === 4 && unit.name !== deck.carryChampionName && !majorUnitsToShowItemsAndStars.has(unit.apiName)
+  );
+  for (let i = 0; i < Math.min(2, nonCarry4CostUnits.length); i++) {
+    majorUnitsToShowItemsAndStars.add(nonCarry4CostUnits[i].apiName);
+  }
+
+  // 3. 여전히 3명이 안 되었다면, 남은 유닛 중 가장 중요한 순서대로 추가
+  const remainingUnits = sortedCoreUnits.filter(unit => 
+    !majorUnitsToShowItemsAndStars.has(unit.apiName)
+  );
+  for (let i = 0; majorUnitsToShowItemsAndStars.size < 3 && i < remainingUnits.length; i++) {
+    majorUnitsToShowItemsAndStars.add(remainingUnits[i].apiName);
+  }
+
 
   return (
     <div style={{ ...styles.deckCard, borderLeftColor: tierColor }}>
@@ -72,7 +163,15 @@ const DeckCard = ({ deck }) => {
 
       {/* 2열: 핵심 유닛 및 추천 아이템 */}
       <div style={styles.col2}>
-        {deck.coreUnits?.map(unit => <UnitWithItems key={unit.apiName || unit.name} unit={unit} />)}
+        {sortedCoreUnits.map((unit) => (
+          <UnitWithItems
+            key={unit.apiName || unit.name}
+            unit={unit}
+            // 이 유닛이 아이템/별 등급 표시 대상 3명에 포함되는지 확인
+            showItems={majorUnitsToShowItemsAndStars.has(unit.apiName)} 
+            isMajorUnit={majorUnitsToShowItemsAndStars.has(unit.apiName)} 
+          />
+        ))}
       </div>
 
       {/* 3열: 통계 데이터 */}

@@ -1,29 +1,47 @@
 import express from 'express';
 import axios from 'axios';
-import { getAccountByRiotId, getMatchIdsByPUUID, getMatchDetail } from '../services/riotApi.js';
+// ⬇️⬇️⬇️ 필요한 모든 함수를 import 합니다. ⬇️⬇️⬇️
+import { 
+    getAccountByRiotId, 
+    getMatchIdsByPUUID, 
+    getMatchDetail, 
+    getLeagueEntriesBySummonerId,
+    getSummonerByPuuid 
+} from '../services/riotApi.js';
+import getTFTData from '../services/tftData.js';
+
 
 const router = express.Router();
 
-// 데이터 드래곤 로딩 로직 (변경 없음)
-let tftData = null;
-const TFT_DATA_URL = 'https://raw.communitydragon.org/latest/cdragon/tft/ko_kr.json';
-async function loadTFTData() { try { console.log('최신 TFT 데이터를 불러오는 중입니다...'); const response = await axios.get(TFT_DATA_URL); const currentSet = '14'; tftData = { items: response.data.items, champions: response.data.sets[currentSet].champions, traits: response.data.sets[currentSet].traits, }; console.log(`TFT 시즌 ${currentSet} 데이터 로딩 성공!`); } catch (error) { console.error('TFT 데이터 로딩 실패:', error.message); } }
-loadTFTData();
-
+// GET /api/summoner?region=kr&...
 router.get('/', async (req, res, next) => {
   const { region, gameName, tagLine } = req.query;
+  const tftData = await getTFTData(); // 데이터 드래곤 데이터 로드
+
   if (!tftData) { return res.status(503).json({ error: '서버가 아직 TFT 데이터를 로딩 중입니다.' }); }
   if (!region || !gameName || !tagLine) { return res.status(400).json({ error: 'region, gameName, tagLine 파라미터가 모두 필요합니다.' }); }
 
   try {
+    // 1. gameName과 tagLine으로 계정 정보(puuid 등) 조회
     const account = await getAccountByRiotId(gameName, tagLine);
     const { puuid } = account;
-    const matchIds = await getMatchIdsByPUUID(puuid, 10);
-    if (!matchIds || matchIds.length === 0) { return res.json({ account, matches: [] }); }
+    
+    // 2. puuid로 소환사 정보(암호화된 id, 프로필 아이콘 등) 조회
+    const summonerData = await getSummonerByPuuid(puuid);
 
+    // 3. 암호화된 summonerId로 랭크 정보(티어, LP 등) 조회
+    const leagueEntry = await getLeagueEntriesBySummonerId(summonerData.id);
+
+    // 4. puuid로 최근 10게임 매치 ID 조회
+    const matchIds = await getMatchIdsByPUUID(puuid, 10);
+    if (!matchIds) { 
+        return res.json({ account: {...account, ...summonerData}, league: leagueEntry, matches: [] }); 
+    }
+
+    // 5. 각 매치 상세 정보 조회 및 가공
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     const matchDetails = [];
-    for (const matchId of matchIds) {
+    for (const matchId of matchIds.slice(0, 10)) { // 최대 10개만
       const detail = await getMatchDetail(matchId);
       matchDetails.push(detail);
       await delay(120);
@@ -39,35 +57,31 @@ router.get('/', async (req, res, next) => {
         const champInfo = tftData.champions.find(c => c.apiName.toLowerCase() === unit.character_id.toLowerCase());
         const items = unit.itemNames.map(itemName => {
             const itemInfo = tftData.items.find(i => i.apiName.toLowerCase() === itemName.toLowerCase());
-            const imageUrl = itemInfo?.icon ? `${cdnBaseUrl}${itemInfo.icon.toLowerCase().replace('.tex', '.png')}` : null;
-            return { name: itemInfo ? itemInfo.name : itemName, image_url: imageUrl };
+            return { name: itemInfo?.name || '', image_url: itemInfo?.icon ? `${cdnBaseUrl}${itemInfo.icon}` : null };
         });
-        
-        // ⬇️⬇️⬇️ 아이콘 경로를 tileIcon으로 변경하고, cost 정보를 추가합니다. ⬇️⬇️⬇️
-        const champImageUrl = champInfo?.tileIcon ? `${cdnBaseUrl}${champInfo.tileIcon.toLowerCase().replace('.tex', '.png')}` : null;
         return {
-            name: champInfo ? champInfo.name : unit.character_id,
-            image_url: champImageUrl,
-            tier: unit.tier,
-            cost: champInfo ? champInfo.cost : 0, // 코스트 정보 추가
-            items: items,
+            name: champInfo?.name || '', image_url: champInfo?.tileIcon ? `${cdnBaseUrl}${champInfo.tileIcon}` : null,
+            tier: unit.tier, cost: champInfo?.cost || 0, items: items,
         };
       });
 
       const traits = participant.traits.filter(t => t.style > 0).map(t => {
           const traitInfo = tftData.traits.find(trait => trait.apiName.toLowerCase() === t.name.toLowerCase());
-          const traitImageUrl = traitInfo?.icon ? `${cdnBaseUrl}${traitInfo.icon.toLowerCase().replace('.tex', '.png')}` : null;
-          return {
-              name: traitInfo ? traitInfo.name : t.name, image_url: traitImageUrl, tier_current: t.tier_current, style: t.style,
-          };
+          return { name: traitInfo?.name || '', image_url: traitInfo?.icon ? `${cdnBaseUrl}${traitInfo.icon}` : null, tier_current: t.tier_current, style: t.style, };
       });
 
       return {
-        matchId: match.metadata.match_id, game_datetime: match.info.game_datetime, placement: participant.placement, last_round: participant.last_round, units: units, traits: traits,
+        matchId: match.metadata.match_id, game_datetime: match.info.game_datetime, placement: participant.placement, last_round: participant.last_round, units, traits, level: participant.level
       };
     }).filter(Boolean);
 
-    res.json({ account, matches: processedMatches });
+    // 6. 모든 정보를 취합하여 최종 응답 전송
+    res.json({ 
+        account: { ...account, ...summonerData }, // 계정 정보와 소환사 정보를 합쳐서 전달
+        league: leagueEntry, 
+        matches: processedMatches 
+    });
+
   } catch (error) {
     next(error);
   }

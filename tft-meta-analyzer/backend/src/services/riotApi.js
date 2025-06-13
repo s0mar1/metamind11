@@ -24,8 +24,7 @@ export const getAccountByRiotId = async (gameName, tagLine) => {
 
 export const getMatchIdsByPUUID = async (puuid, count = 20) => {
   const apiRegion = 'asia';
-  const queueId = 1100; // TFT Ranked Queue ID
-  // 14시즌 시작일 이후의 매치만 가져오도록 startTime 필터 추가
+  const queueId = 1100; // TFT 랭크 게임
   const set14StartDate = new Date('2025-05-20T00:00:00Z'); // 실제 시즌 시작일로 조정 필요
   const startTime = Math.floor(set14StartDate.getTime() / 1000);
 
@@ -36,7 +35,7 @@ export const getMatchIdsByPUUID = async (puuid, count = 20) => {
     return response.data;
   } catch (error) {
     if (error.response && error.response.status === 404) {
-      return []; // 기록이 없는 경우 빈 배열 반환
+      return [];
     }
     throw error;
   }
@@ -68,4 +67,25 @@ export const getAccountByPuuid = async (puuid) => {
   const url = `https://${apiRegion}.api.riotgames.com/riot/account/v1/accounts/by-puuid/${puuid}`;
   const response = await api.get(url);
   return response.data;
+};
+
+export const getSummonerByPuuid = async (puuid) => {
+  const apiRegion = 'kr';
+  const url = `https://${apiRegion}.api.riotgames.com/tft/summoner/v1/summoners/by-puuid/${puuid}`;
+  const response = await api.get(url);
+  return response.data;
+};
+
+export const getLeagueEntriesBySummonerId = async (summonerId) => {
+  const apiRegion = 'kr';
+  const url = `https://${apiRegion}.api.riotgames.com/tft/league/v4/entries/by-summoner/${summonerId}`;
+  try {
+    const response = await api.get(url);
+    return response.data.find(entry => entry.queueType === 'RANKED_TFT');
+  } catch (error) {
+    if (error.response && error.response.status === 404) {
+      return null; 
+    }
+    throw error;
+  }
 };

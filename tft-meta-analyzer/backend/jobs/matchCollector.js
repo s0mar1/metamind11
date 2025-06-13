@@ -1,3 +1,4 @@
+// backend/jobs/matchCollector.js
 import { getChallengerLeague, getSummonerBySummonerId, getAccountByPuuid, getMatchIdsByPUUID, getMatchDetail } from '../src/services/riotApi.js';
 import Match from '../src/models/Match.js';
 import Ranker from '../src/models/Ranker.js';
@@ -5,7 +6,6 @@ import getTFTData from '../src/services/tftData.js';
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
-// ⬇️⬇️⬇️ 함수 이름을 여기서 변경합니다. ⬇️⬇️⬇️
 export const collectTopRankerMatches = async () => {
   try {
     const tftData = await getTFTData();
@@ -64,22 +64,47 @@ export const collectTopRankerMatches = async () => {
 
     for (const matchId of limitedMatchIds) {
       const existingMatch = await Match.findOne({ 'metadata.match_id': matchId });
-      if (existingMatch) continue;
+      if (existingMatch) {
+        console.log(`🟡 매치 ${matchId.substring(0, 8)}... 이미 DB에 존재하여 건너뜀.`);
+        continue;
+      }
 
       try {
         const matchDetail = await getMatchDetail(matchId);
-        if (!matchDetail?.metadata?.data_version || !matchDetail?.info?.game_length || matchDetail.info.game_length < 1) continue;
+        // 디버깅을 위한 로그 추가: 가져온 매치의 data_version 확인
+        const matchDataVersion = matchDetail?.metadata?.data_version;
+        console.log(`[디버깅] 매치 ${matchId.substring(0, 8)}... data_version: ${matchDataVersion}`);
+
+        if (!matchDataVersion || !matchDetail?.info?.game_length || matchDetail.info.game_length < 1) {
+          console.log(`🟠 매치 ${matchId.substring(0, 8)}... 유효하지 않은 데이터 (버전, 길이 등)로 건너뜀.`);
+          continue;
+        }
         
-        const matchDataVersionPrefix = matchDetail.metadata.data_version.split('.')[0];
-        if (matchDataVersionPrefix !== currentSet) continue;
+        // 🚨🚨🚨 이 필터링 조건을 일시적으로 주석 처리합니다. 🚨🚨🚨
+        // 이 부분이 '다른 시즌(6) 데이터로 건너뜀' 로그의 원인이었으므로,
+        // 현재 Riot API가 반환하는 실제 data_version 값을 확인하기 위해 잠시 비활성화합니다.
+        // const matchDataVersionPrefix = matchDataVersion.split('.')[0];
+        // if (matchDataVersionPrefix !== currentSet) {
+        //     console.log(`🔵 매치 ${matchId.substring(0, 8)}... 다른 시즌(${matchDataVersionPrefix}) 데이터로 건너뜀. 현재 시즌: ${currentSet}`);
+        //     continue;
+        // }
 
         await Match.create(matchDetail);
         console.log(`✅ 매치 ${matchId.substring(0, 8)}... DB에 성공적으로 저장됨.`);
         await delay(1200);
       } catch (detailError) {
-        if (detailError.response?.status !== 404) {
-          console.error(`🚨 매치 ${matchId.substring(0, 8)}... 처리 중 에러:`, detailError.message);
+        if (detailError.isAxiosError && detailError.response) {
+            if (detailError.response.status === 404) {
+                console.warn(`⚠️ 매치 ${matchId.substring(0, 8)}... Riot API에서 찾을 수 없음 (404).`);
+            } else if (detailError.response.status === 429) {
+                console.error(`🔴 매치 ${matchId.substring(0, 8)}... Riot API Rate Limit 초과 (429). 잠시 후 재시도 필요.`);
+            } else {
+                console.error(`🚨 매치 ${matchId.substring(0, 8)}... Riot API 에러 (${detailError.response.status}):`, detailError.message, detailError.response.data);
+            }
+        } else {
+            console.error(`❌ 매치 ${matchId.substring(0, 8)}... 처리 중 예상치 못한 에러:`, detailError.message, detailError.stack);
         }
+        await delay(1200);
       }
     }
     console.log('--- 매치 데이터 수집 완료 ---');
