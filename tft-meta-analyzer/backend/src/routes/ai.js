@@ -20,7 +20,7 @@ if (!GOOGLE_AI_API_KEY) {
   console.error('GOOGLE_AI_API_KEY가 .env 파일에 없습니다!');
 }
 const genAI = new GoogleGenerativeAI(GOOGLE_AI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-04-17" });
 
 // 기존 자동 분석 탭 라우트 (프롬프트 조합 부분 변경)
 router.post('/analyze', async (req, res, next) => {

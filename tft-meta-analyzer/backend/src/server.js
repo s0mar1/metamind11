@@ -10,6 +10,7 @@ import './services/scheduler.js';
 import connectDB from './config/db.js';
 import tierlistRoutes from './routes/tierlist.js';
 import rankingRoutes from './routes/ranking.js';
+import staticDataRoutes from './routes/staticData.js';
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.use(cors());
 app.use(express.json());
 
 // API 라우터
+app.use('/api/static-data', staticDataRoutes); 
 app.use('/api/summoner', summonerRoutes);
 app.use('/api/match', matchRoutes);
 app.use('/api/ai', aiRoutes);

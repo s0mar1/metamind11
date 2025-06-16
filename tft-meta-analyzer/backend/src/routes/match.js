@@ -42,6 +42,7 @@ router.get('/:matchId', async (req, res, next) => {
       const units = p.units.map(u => {
         const ch = tft.champions.find(c => c.apiName?.toLowerCase() === u.character_id?.toLowerCase());
         return {
+          character_id: u.character_id,
           name: ch?.name || u.character_id, image_url: toPNG(ch?.tileIcon),
           tier: u.tier, cost: ch?.cost || 0,
           items: u.itemNames.map(n => {
