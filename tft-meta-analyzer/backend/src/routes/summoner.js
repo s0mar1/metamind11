@@ -1,3 +1,5 @@
+// routes/summoner.js (진짜 최종 완성본)
+
 import express from 'express';
 import {
   getAccountByRiotId,
@@ -7,153 +9,120 @@ import {
   getMatchDetail,
 } from '../services/riotApi.js';
 import getTFTData from '../services/tftData.js';
-import NodeCache from 'node-cache';
+import NodeCache  from 'node-cache';
 
 const router = express.Router();
-const cache  = new NodeCache({ stdTTL: 600 });       // 10 분 캐시
+const cache  = new NodeCache({ stdTTL: 600 });
+const cdn    = 'https://raw.communitydragon.org/latest/game/';
 
-//-------------------------------------------------------------------
+const IDX2KEY     = ['inactive', 'bronze', 'silver', 'gold', 'prismatic'];
+const STYLE_ORDER = { bronze:1, silver:2, gold:3, prismatic:4, unique:4 };
+const PALETTE = {
+  bronze   : '#C67A32', silver   : '#BFC4CF', gold     : '#FFD667',
+  prismatic: '#CFF1F1', unique   : '#FFA773',
+};
+const toPNG = p => p ? `${cdn}${p.toLowerCase().replace(/\.(tex|dds)$/ , '.png')}` : null;
+
 router.get('/', async (req, res, next) => {
-  const { region, gameName, tagLine, forceRefresh } = req.query;
-  if (!region || !gameName || !tagLine) {
-    return res.status(400).json({ error: 'region, gameName, tagLine 필요' });
-  }
-
-  const cacheKey = `${region}:${gameName}#${tagLine}`;
-  if (forceRefresh !== 'true') {
-    const hit = cache.get(cacheKey);
-    if (hit) return res.json(hit);
-  }
-
   try {
-    /* ① TFT static 데이터 */
-    const tftData = await getTFTData();          // { items, champions, traits, currentSet }
-    if (!tftData) {
-      return res.status(503).json({ error: 'TFT 데이터 로드 실패' });
+    const { region, gameName, tagLine, forceRefresh } = req.query;
+    if (!region || !gameName || !tagLine)
+      return res.status(400).json({ error:'region, gameName, tagLine 필요' });
+
+    const cacheKey = `${region}:${gameName}#${tagLine}`;
+    if (forceRefresh !== 'true') {
+      const hit = cache.get(cacheKey);
+      if (hit) return res.json(hit);
     }
 
-    /* ② 소환사 정보 */
+    const tft = await getTFTData();
+    if (!tft || !tft.traitMap?.size) {
+      return res.status(503).json({ error:'TFT static 데이터가 완전하지 않습니다.' });
+    }
+
     const account      = await getAccountByRiotId(gameName, tagLine);
-    const { puuid }    = account;
-    const summonerData = await getSummonerByPuuid(puuid);
-    const leagueEntry  = await getLeagueEntriesBySummonerId(summonerData.id);
+    const summonerInfo = await getSummonerByPuuid(account.puuid);
+    const leagueEntry  = await getLeagueEntriesBySummonerId(summonerInfo.id);
+    const ids     = await getMatchIdsByPUUID(account.puuid, 10);
+    const matches = [];
 
-    /* ③ 최근 매치 10개 */
-    const matchIds = await getMatchIdsByPUUID(puuid, 10);
-    const matches  = [];
+    if (Array.isArray(ids) && ids.length) {
+      const raws = await Promise.all(ids.map(id => getMatchDetail(id).catch(() => null)));
 
-    if (matchIds?.length) {
-      const details = await Promise.all(
-        matchIds.map(id => getMatchDetail(id).catch(() => null)),
-      );
-
-      for (const match of details.filter(Boolean)) {
-        const me = match.info.participants.find(p => p.puuid === puuid);
+      for (const match of raws.filter(Boolean)) {
+        const me = match.info.participants.find(p => p.puuid === account.puuid);
         if (!me) continue;
 
-        const cdn = 'https://raw.communitydragon.org/latest/game/';
-
-        /* ─ 유닛 가공 ─ */
         const units = me.units.map(u => {
-          const champ = tftData.champions.find(
-            c => c.apiName.toLowerCase() === u.character_id.toLowerCase(),
-          );
+          const ch = tft.champions.find(c => c.apiName?.toLowerCase() === u.character_id?.toLowerCase());
           return {
-            name     : champ?.name || u.character_id,
-            image_url: champ?.tileIcon
-              ? `${cdn}${champ.tileIcon.toLowerCase().replace('.tex', '.png')}`
-              : null,
-            tier : u.tier,
-            cost : champ?.cost || 0,
-            items: u.itemNames.map(itemApi => {
-              const it = tftData.items.find(
-                i => i.apiName.toLowerCase() === itemApi.toLowerCase(),
-              );
-              return {
-                name     : it?.name || '',
-                image_url: it?.icon
-                  ? `${cdn}${it.icon.toLowerCase().replace('.tex', '.png')}`
-                  : null,
-              };
+            name: ch?.name || u.character_id, image_url: toPNG(ch?.tileIcon),
+            tier: u.tier, cost: ch?.cost || 0,
+            items: u.itemNames.map(n => {
+              const it = tft.items.find(i => i.apiName?.toLowerCase() === n?.toLowerCase());
+              return { name: it?.name || '', image_url: toPNG(it?.icon) };
             }),
           };
         });
-
-        /* ─ 특성 가공 ─ */
-        const styleRank = { bronze:1, silver:2, gold:3, platinum:3, emerald:3,
-                            chromatic:4, prismatic:4 };
-        const num2key   = ['none', 'bronze', 'silver', 'gold', 'prismatic'];
-        const styleNames= ['none', 'bronze', 'silver', 'gold', 'prismatic'];
-
-        const traits = me.traits
-          .map(t => {
-            const info = tftData.traits.find(
-              dt => dt.apiName.toLowerCase() === t.name.toLowerCase(),
-            );
-            const unitsCnt = t.num_units ?? t.tier_current ?? 0;
-            if (!info || !Array.isArray(info.sets) || info.sets.length === 0 || unitsCnt === 0) {
-              return null;
+        
+        const traitCounts = new Map();
+        for (const unit of me.units) {
+            const champData = tft.champions.find(c => c.apiName?.toLowerCase() === unit.character_id?.toLowerCase());
+            if (champData?.traits) {
+                for (const traitName of champData.traits) {
+                    traitCounts.set(traitName, (traitCounts.get(traitName) || 0) + 1);
+                }
             }
+        }
 
-            /* styleName / styleOrder 결정 */
-            let styleName  = 'inactive';
-            let styleOrder = 0;
-            for (const s of info.sets) {
-              if (unitsCnt >= s.min) {
-                styleName = typeof s.style === 'string'
-                  ? s.style.toLowerCase()
-                  : styleNames[s.style] || 'bronze';
-                styleOrder = styleRank[styleName] || 0;
-              }
-            }
+        const traits = [];
+        for (const [traitName, count] of traitCounts.entries()) {
+            const meta = tft.traitMap.get(traitName.toLowerCase());
+            if (!meta) continue;
 
-            /* 색상(hex) 추출 */
-            const styleHex = info.sets.find(s => {
-              const sn = typeof s.style === 'string'
-                ? s.style.toLowerCase()
-                : styleNames[s.style];
-              return sn === styleName;
-            })?.styleHexColor || '#4B5563';
+            const cnt = count;
+            const rows = Array.isArray(meta.effects) ? meta.effects : [];
 
-            /* 아이콘 경로 */
-            const toPng = p => p.toLowerCase().replace(/\.(tex|dds)$/, '.png');
-            const iconPath = info.icon
-              ? `${cdn}${toPng(info.icon)}`
-              : `${cdn}assets/ux/traiticons/trait_icon_${tftData.currentSet}_${
-                  info.name.toLowerCase().replace(/\s+/g, '')
-                }.png`;
+            // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+            //         [최종 버그 수정] r.min -> r.minUnits
+            const active = rows.filter(r => cnt >= r.minUnits).sort((a, b) => b.minUnits - a.minUnits)[0] ?? null;
+            // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+            
+            if (!active) continue;
 
-            return {
-              name        : info.name,
-              image_url   : iconPath,
-              tier_current: unitsCnt,
-              style       : styleName,
-              styleOrder  : styleOrder,
-              color       : styleHex,
-            };
-          })
-          .filter(Boolean);
+            let styleKey = active ? (typeof active.style === 'string' ? active.style.toLowerCase() : IDX2KEY[active.style] || 'bronze') : 'bronze';
+            
+            // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+            //         [최종 버그 수정] r.min -> r.minUnits / active.min -> active.minUnits
+            const topMin = rows.reduce((m, r) => Math.max(m, r.minUnits), 0);
+            if (rows.length >= 4 && styleKey === 'prismatic' && active.minUnits < topMin) styleKey = 'gold';
+            if (rows.length === 1 && rows[0].minUnits === 1) styleKey = 'unique';
+            // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
+            const hex = (active?.styleHexColor?.trim()) ?? PALETTE[styleKey] ?? '#4B5563';
+            const displayName = tft.krNameMap.get(meta.apiName.toLowerCase()) || meta.name;
+
+            traits.push({
+                name: displayName, image_url: toPNG(meta.icon),
+                tier_current: cnt, style: styleKey,
+                styleOrder: STYLE_ORDER[styleKey], color: hex,
+            });
+        }
+        
+        traits.sort((a, b) => (b.styleOrder - a.styleOrder) || (b.tier_current - a.tier_current));
 
         matches.push({
-          matchId      : match.metadata.match_id,
-          game_datetime: match.info.game_datetime,
-          placement    : me.placement,
-          last_round   : me.last_round,
-          level        : me.level,
-          units,
-          traits,
+          matchId: match.metadata.match_id, game_datetime: match.info.game_datetime,
+          placement: me.placement, level: me.level,
+          units, traits,
         });
       }
     }
 
-    /* ④ 응답 */
-    const payload = {
-      account: { ...account, ...summonerData },
-      league : leagueEntry,
-      matches,
-    };
+    const payload = { account: { ...account, ...summonerInfo }, league: leagueEntry, matches };
     cache.set(cacheKey, payload);
     res.json(payload);
+
   } catch (err) {
     next(err);
   }

@@ -1,13 +1,16 @@
+// frontend/src/App.jsx
+
 import React from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import Header from './components/layout/Header';
 import HomePage from './pages/HomePage';
 import SummonerPage from './pages/summoner/SummonerPage';
 import TierListPage from './pages/tierlist/TierListPage';
-import RankingPage from './pages/ranking/RankingPage'; // ⬅️ 새로 만들 페이지 import
+import RankingPage from './pages/ranking/RankingPage'; // 랭킹 페이지 import (기존)
+import AiQnaPage from './pages/AiQnaPage/AiQnaPage.jsx';  // ⬅️ 새로 만든 AI Q&A 페이지 import
 
-// 임시 페이지 컴포넌트들
-const AIChatPage = () => <div className="p-8 text-center">AI 질문하기 기능은 현재 개발 중입니다.</div>;
+// 임시 페이지 컴포넌트들 (이제 AIChatPage는 AiQnaPage로 대체됩니다)
+// const AIChatPage = () => <div className="p-8 text-center">AI 질문하기 기능은 현재 개발 중입니다.</div>; // 이제 필요 없습니다.
 const AboutPage = () => <div className="p-8 text-center">MetaMind 프로젝트 소개 페이지입니다.</div>;
 
 function App() {
@@ -22,7 +25,10 @@ function App() {
           
           {/* ⬇️⬇️⬇️ 랭킹 페이지 경로를 실제 컴포넌트로 연결 ⬇️⬇️⬇️ */}
           <Route path="/ranking" element={<RankingPage />} />
-          <Route path="/ai-chat" element={<AIChatPage />} />
+          
+          {/* ⬇️⬇️⬇️ AI 질문하기 페이지 경로를 실제 AiQnaPage 컴포넌트로 연결 ⬇️⬇️⬇️ */}
+          <Route path="/ai-chat" element={<AiQnaPage />} /> {/* AIChatPage 대신 AiQnaPage 사용 */}
+          
           <Route path="/about" element={<AboutPage />} />
         </Routes>
       </main>
