@@ -1,8 +1,9 @@
+// frontend/src/pages/summoner/components/MatchDetailContent.jsx
+
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Trait from './Trait';
 import Unit from './Unit';
-// AIAnalysisView도 별도 파일로 분리할 수 있지만, 우선 여기에 둡니다.
 
 const styles = {
   // 상세 보기에 필요한 최소한의 스타일
@@ -30,7 +31,7 @@ const AIAnalysisView = ({ matchId, userPuuid }) => {
     return <div>AI 분석 기능은 여기에 구현됩니다.</div>;
 };
 
-const MatchDetailContent = ({ matchId, userPuuid }) => {
+const MatchDetailContent = ({ matchId, userPuuid, isCompact = false }) => { // isCompact prop을 받도록 추가
   const [tab, setTab] = useState('info');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -63,7 +64,8 @@ const MatchDetailContent = ({ matchId, userPuuid }) => {
           {traits.map((t, i) => <Trait key={i} trait={t} showCount={false} />)}
         </div>
         <div style={styles.detailPlayerUnits}>
-          {participant.units.map((u, idx) => u.image_url && <Unit key={idx} unit={u} />)}
+          {/* 💡 수정: 상세 뷰에서는 isCompact: true로 Unit 컴포넌트에 전달 */}
+          {participant.units.map((u, idx) => u.image_url && <Unit key={idx} unit={u} isCompact={true} />)}
         </div>
       </div>
     );

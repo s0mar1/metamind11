@@ -1,65 +1,58 @@
-import React from 'react';
+// frontend/src/pages/summoner/components/Trait.jsx
 
-const styles = {
-  traitGroup: {
-    display: 'flex',
-    alignItems: 'center',
-  },
-  traitHexagon: {
-    width: '32px',
-    height: '32px',
-    clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-    zIndex: 2,
-  },
-  traitImg: {
-    width: '20px',
-    height: '20px',
-  },
-  traitCountBox: {
-    height: '26px',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingLeft: '18px',
-    paddingRight: '8px',
-    borderRadius: '5px',
-    fontWeight: 'bold',
-    fontSize: '14px',
-    color: '#fff',
-    textShadow: '1px 1px 1px rgba(0,0,0,0.5)',
-    marginLeft: '-15px',
-    zIndex: 1,
-  },
-};
+import React from 'react';
+import classNames from 'classnames';
+import TraitHexIcon from './TraitHexIcon';
 
 const Trait = ({ trait, showCount = true }) => {
-  const color = trait.color || '#4A5563';
-  const slug = trait.name.toLowerCase().replace(/\s+/g, '');
-  const fallback = `https://raw.communitydragon.org/latest/game/assets/ux/traiticons/trait_icon_14_${slug}.png`;
-  const iconSrc  = trait.image_url || fallback;
+  const hexVariant = trait.style === 'unique' ? 'chromatic' : (trait.style === 'inactive' ? 'none' : trait.style);
 
-  const HexagonWithBorder = (
-    <div style={{ ...styles.traitHexagon, backgroundColor: color }}>
-      <div style={{ ...styles.traitHexagon, width: '28px', height: '28px', backgroundColor: `${color}99` }}>
-        <img src={iconSrc} alt={trait.name} style={styles.traitImg} />
-      </div>
-    </div>
-  );
+  // 특성 아이콘 컨테이너 크기 (TraitHexIcon의 size prop과 일치)
+  const traitIconSize = 32; // main.css의 trait-hexagon 기본 width와 일치
 
-  if (!showCount) {
-    return (<div title={trait.name}>{HexagonWithBorder}</div>);
-  }
+  // countBoxClassNames는 이제 사용되지 않으므로, 주석 처리합니다.
+  // const countBoxClassNames = classNames(
+  //   'trait-count-box',
+  //   {
+  //     [`trait-count-box--${trait.style}`]: trait.style && trait.style !== 'inactive',
+  //     'trait-hexagon--inactive': trait.style === 'inactive', // 오타 수정
+  //   }
+  // );
 
   return (
-    <div style={styles.traitGroup} title={`${trait.name} (${trait.tier_current})`}>
-      {HexagonWithBorder}
-      <div style={{...styles.traitCountBox, backgroundColor: `${color}66`, border: `1.5px solid ${color}`}}>
-        {trait.tier_current}
+    <div className="trait-group" title={`${trait.name} (${trait.tier_current})`}>
+      {/* 💡 수정: 육각형 배경을 TraitHexIcon 컴포넌트로 대체 */}
+      {/* size prop을 통해 TraitHexIcon의 크기를 제어 */}
+      <div style={{ 
+          position: 'relative', 
+          width: traitIconSize, 
+          height: traitIconSize * (115 / 100), // TraitHexIcon의 viewBox 종횡비에 맞춰 높이 설정
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center' 
+      }}>
+          <TraitHexIcon variant={hexVariant} size={traitIconSize} /> {/* size prop 전달 */}
+          {/* 실제 특성 아이콘 이미지를 SVG 위에 겹쳐서 표시 */}
+          {/* 이미지 크기를 육각형 내부에 맞게 조절하고, 중앙에 위치 */}
+          <img 
+            src={trait.image_url} 
+            alt={trait.name} 
+            className="trait-img" 
+            style={{ 
+              position: 'absolute', 
+              zIndex: 3, 
+              width: 20, 
+              height: 20 
+            }} // 아이콘 이미지 크기 고정
+          />
       </div>
+
+      {/* 💡 수정: 특성 활성화 숫자 표시 부분을 제거합니다. */}
+      {/* {showCount && trait.tier_current > 0 && (
+        <div className={countBoxClassNames}>
+          {trait.tier_current}
+        </div>
+      )} */}
     </div>
   );
 };

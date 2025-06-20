@@ -1,4 +1,4 @@
-// routes/summoner.js (진짜 최종 완성본)
+// backend/src/routes/summoner.js
 
 import express from 'express';
 import {
@@ -8,20 +8,11 @@ import {
   getMatchIdsByPUUID,
   getMatchDetail,
 } from '../services/riotApi.js';
-import getTFTData from '../services/tftData.js';
+import getTFTData, { getTraitStyleInfo } from '../services/tftData.js'; // getTraitStyleInfo import
 import NodeCache  from 'node-cache';
 
 const router = express.Router();
 const cache  = new NodeCache({ stdTTL: 600 });
-const cdn    = 'https://raw.communitydragon.org/latest/game/';
-
-const IDX2KEY     = ['inactive', 'bronze', 'silver', 'gold', 'prismatic'];
-const STYLE_ORDER = { bronze:1, silver:2, gold:3, prismatic:4, unique:4 };
-const PALETTE = {
-  bronze   : '#C67A32', silver   : '#BFC4CF', gold     : '#FFD667',
-  prismatic: '#CFF1F1', unique   : '#FFA773',
-};
-const toPNG = p => p ? `${cdn}${p.toLowerCase().replace(/\.(tex|dds)$/ , '.png')}` : null;
 
 router.get('/', async (req, res, next) => {
   try {
@@ -36,8 +27,9 @@ router.get('/', async (req, res, next) => {
     }
 
     const tft = await getTFTData();
-    if (!tft || !tft.traitMap?.size) {
-      return res.status(503).json({ error:'TFT static 데이터가 완전하지 않습니다.' });
+    if (!tft || !tft.traitMap?.size || !tft.champions?.length || !tft.items?.length || !tft.krNameMap) {
+      console.error('TFT static 데이터 로드 실패 또는 불완전:', tft);
+      return res.status(503).json({ error:'TFT static 데이터가 완전하지 않습니다. 서버 로그를 확인해주세요.' });
     }
 
     const account      = await getAccountByRiotId(gameName, tagLine);
@@ -47,7 +39,18 @@ router.get('/', async (req, res, next) => {
     const matches = [];
 
     if (Array.isArray(ids) && ids.length) {
-      const raws = await Promise.all(ids.map(id => getMatchDetail(id).catch(() => null)));
+      const raws = [];
+      for (const id of ids) {
+          try {
+              const detail = await getMatchDetail(id);
+              raws.push(detail);
+              await new Promise(resolve => setTimeout(resolve, 1500));
+          } catch (detailError) {
+              console.warn(`WARN: 매치 ${id.substring(0, 8)}... 상세 정보 가져오기 실패: ${detailError.message}`);
+              raws.push(null);
+              await new Promise(resolve => setTimeout(resolve, 1500));
+          }
+      }
 
       for (const match of raws.filter(Boolean)) {
         const me = match.info.participants.find(p => p.puuid === account.puuid);
@@ -55,67 +58,66 @@ router.get('/', async (req, res, next) => {
 
         const units = me.units.map(u => {
           const ch = tft.champions.find(c => c.apiName?.toLowerCase() === u.character_id?.toLowerCase());
+          if (!ch) {
+            console.warn(`WARN: 챔피언 ${u.character_id} (매치 ${match.metadata.match_id.substring(0,8)}...) TFT static 데이터에서 찾을 수 없음.`);
+          }
+          
+          const processedItems = (u.itemNames || []).map(n => {
+            const it = tft.items.find(i => i.apiName?.toLowerCase() === n?.toLowerCase());
+            if (!it) {
+                console.warn(`WARN: 아이템 ${n} (매치 ${match.metadata.match_id.substring(0,8)}... 유닛 ${u.character_id}) TFT static 데이터에서 찾을 수 없음.`);
+            }
+            return { name: it?.name || n, image_url: it?.icon || null }; 
+          });
+          
+          console.log(`DEBUG: Unit ${u.character_id} - ItemNames from Riot:`, u.itemNames);
+          console.log(`DEBUG: Unit ${u.character_id} - Processed Items:`, processedItems);
+
           return {
             character_id: u.character_id,
-            name: ch?.name || u.character_id, image_url: toPNG(ch?.tileIcon),
+            name: ch?.name || u.character_id, 
+            image_url: ch?.tileIcon || null, 
             tier: u.tier, cost: ch?.cost || 0,
-            items: u.itemNames.map(n => {
-              const it = tft.items.find(i => i.apiName?.toLowerCase() === n?.toLowerCase());
-              return { name: it?.name || '', image_url: toPNG(it?.icon) };
-            }),
+            items: processedItems,
           };
         });
         
-        const traitCounts = new Map();
-        for (const unit of me.units) {
-            const champData = tft.champions.find(c => c.apiName?.toLowerCase() === unit.character_id?.toLowerCase());
-            if (champData?.traits) {
-                for (const traitName of champData.traits) {
-                    traitCounts.set(traitName, (traitCounts.get(traitName) || 0) + 1);
-                }
-            }
-        }
-
-        const traits = [];
-        for (const [traitName, count] of traitCounts.entries()) {
-            const meta = tft.traitMap.get(traitName.toLowerCase());
-            if (!meta) continue;
-
-            const cnt = count;
-            const rows = Array.isArray(meta.effects) ? meta.effects : [];
-
-            // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-            //         [최종 버그 수정] r.min -> r.minUnits
-            const active = rows.filter(r => cnt >= r.minUnits).sort((a, b) => b.minUnits - a.minUnits)[0] ?? null;
-            // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
-            
-            if (!active) continue;
-
-            let styleKey = active ? (typeof active.style === 'string' ? active.style.toLowerCase() : IDX2KEY[active.style] || 'bronze') : 'bronze';
-            
-            // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-            //         [최종 버그 수정] r.min -> r.minUnits / active.min -> active.minUnits
-            const topMin = rows.reduce((m, r) => Math.max(m, r.minUnits), 0);
-            if (rows.length >= 4 && styleKey === 'prismatic' && active.minUnits < topMin) styleKey = 'gold';
-            if (rows.length === 1 && rows[0].minUnits === 1) styleKey = 'unique';
-            // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
-
-            const hex = (active?.styleHexColor?.trim()) ?? PALETTE[styleKey] ?? '#4B5563';
-            const displayName = tft.krNameMap.get(meta.apiName.toLowerCase()) || meta.name;
-
-            traits.push({
-                name: displayName, image_url: toPNG(meta.icon),
-                tier_current: cnt, style: styleKey,
-                styleOrder: STYLE_ORDER[styleKey], color: hex,
-            });
-        }
+        console.log(`DEBUG: Riot original traits for participant:`, me.traits);
         
-        traits.sort((a, b) => (b.styleOrder - a.styleOrder) || (b.tier_current - a.tier_current));
+        const processedTraits = (me.traits || []).map(riotTrait => {
+            const apiName = riotTrait.name;
+            const currentCount = riotTrait.num_units || riotTrait.tier_current || 0; // num_units 우선
+
+            console.log(`DEBUG_TRAIT_PROCESS: Processing Riot Trait: ${apiName}, Raw Count (num_units): ${riotTrait.num_units}, Raw Count (tier_current): ${riotTrait.tier_current}, Final currentCount: ${currentCount}`);
+            const styleInfo = getTraitStyleInfo(apiName, currentCount, tft);
+            
+            if (!styleInfo) {
+                console.warn(`WARN: 특성 ${riotTrait.name} (매치 ${match.metadata.match_id.substring(0,8)}...) TFT static 데이터에서 찾을 수 없음. styleInfo is null.`);
+                return null;
+            }
+            console.log(`DEBUG_TRAIT_PROCESS: Processed StyleInfo for ${apiName}:`, styleInfo);
+
+            return {
+                name: styleInfo.name,
+                apiName: styleInfo.apiName,
+                image_url: styleInfo.image_url,
+                tier_current: styleInfo.tier_current,
+                style: styleInfo.style,
+                styleOrder: styleInfo.styleOrder,
+                color: styleInfo.color,
+                currentThreshold: styleInfo.currentThreshold,
+                nextThreshold: styleInfo.nextThreshold,
+            };
+        }).filter(Boolean);
+
+        processedTraits.sort((a, b) => (b.styleOrder - a.styleOrder) || (b.tier_current - a.tier_current));
+        
+        console.log(`DEBUG: Processed Traits:`, processedTraits);
 
         matches.push({
           matchId: match.metadata.match_id, game_datetime: match.info.game_datetime,
           placement: me.placement, level: me.level,
-          units, traits,
+          units, traits: processedTraits,
         });
       }
     }
@@ -125,6 +127,7 @@ router.get('/', async (req, res, next) => {
     res.json(payload);
 
   } catch (err) {
+    console.error('--- [중앙 에러 핸들러] ---');
     next(err);
   }
 });

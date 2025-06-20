@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useDrag } from 'react-dnd';
 import { ItemTypes } from '../../constants';
 import { useTFTData } from '../../context/TFTDataContext';
@@ -17,7 +17,7 @@ function DraggableItem({ item }) {
       ref={drag}
       style={{
         opacity: isDragging ? 0.5 : 1,
-        cursor: 'move',
+        cursor: 'grab', // cursor style to indicate draggable
         width: 40,
         height: 40,
         margin: 2,
@@ -34,156 +34,77 @@ function DraggableItem({ item }) {
 }
 
 export default function ItemPanel() {
-  // useTFTData에서 items와 augments를 가져옴
-  const { items: allItems, augments: allAugments, loading } = useTFTData();
+  // 💡 수정: allItems는 이제 tftData.items의 분류된 객체로 받음
+  const { items: categorizedItemsFromTFTData, augments: allAugments, loading } = useTFTData();
+  const [activeTab, setActiveTab] = useState('basic');
 
+  // 💡 수정: useMemo 로직 간소화 (tftData에서 이미 분류되어 넘어오므로)
   const categorizedItems = useMemo(() => {
-    const basicItems = [];      // 기본 재료 아이템 (ex: 곡궁, 갑옷)
-    const completedItems = [];  // 완성 아이템 (ex: 피바라기, 무한의 대검)
-    const ornnItems = [];       // 오른 아이템 (유물 아이템)
-    const radiantItems = [];    // 찬란한 아이템
-    const emblemItems = [];     // 상징 아이템 (특성 부여 아이템)
-    const unknownItems = [];    // 분류되지 않은 아이템 (디버깅용)
-    
-    if (allItems) {
-      allItems.forEach(item => {
-        const apiName = item.apiName?.toLowerCase();
-        const iconPath = item.icon?.toLowerCase();
-
-        // 1. 오른 아이템 (isUnique=true, Ornn 관련 apiName/iconPath)
-        // Set11에서는 'TFT11_Item_Artifact_'로 시작하는 apiName이 많음
-        if (item.isUnique && (apiName.includes('ornn') || apiName.includes('artifact') || iconPath.includes('ornn'))) {
-            ornnItems.push(item);
-        } 
-        // 2. 찬란한 아이템 (apiName에 'Radiant' 또는 'Hyper' 포함)
-        else if (apiName.includes('radiant') || apiName.includes('hyper')) {
-            radiantItems.push(item);
-        }
-        // 3. 상징 아이템 (associatedTraits 필드 존재 또는 apiName/iconPath에 'Emblem' 포함)
-        // Community Dragon 데이터의 item.associatedTraits 필드가 가장 정확한 기준
-        else if (item.associatedTraits && item.associatedTraits.length > 0) {
-            emblemItems.push(item);
-        } else if (apiName.includes('emblem') || iconPath.includes('emblems')) {
-            emblemItems.push(item);
-        }
-        // 4. 기본 재료 아이템 (apiName이 'TFT_Item_Component_'로 시작)
-        else if (apiName.startsWith('tft_item_component_')) {
-            basicItems.push(item);
-        }
-        // 5. 완성 아이템 (composition 필드가 있고 비어있지 않거나, 기본 아이템, 오른, 찬란, 상징이 아닌 경우)
-        else if (item.composition && item.composition.length > 0) {
-            completedItems.push(item);
-        }
-        // 6. 그 외 분류되지 않은 아이템 (디버깅용)
-        else {
-            // console.log("아이템 분류 실패:", item.name, item.apiName); // 디버깅 로그
-            unknownItems.push(item);
-        }
-      });
+    if (!categorizedItemsFromTFTData) {
+      return {
+        basic: [], completed: [], ornn: [], radiant: [], emblem: [], support: [], robot: [], augments: [],
+      };
     }
-
     return {
-      basicItems,       // 재료 아이템
-      completedItems,   // 완성 아이템
-      ornnItems,        // 오른 아이템
-      radiantItems,     // 찬란한 아이템
-      emblemItems,      // 상징 아이템
-      augments: allAugments, // 증강체
-      unknownItems,     // 분류되지 않은 아이템 (UI에는 표시하지 않을 수 있음)
+      basic: categorizedItemsFromTFTData.basic || [],
+      completed: categorizedItemsFromTFTData.completed || [],
+      ornn: categorizedItemsFromTFTData.ornn || [],
+      radiant: categorizedItemsFromTFTData.radiant || [],
+      emblem: categorizedItemsFromTFTData.emblem || [],
+      support: categorizedItemsFromTFTData.support || [], // 💡 추가: support items
+      robot: categorizedItemsFromTFTData.robot || [],     // 💡 추가: robot items
+      augments: allAugments || [], // 증강체는 여전히 allAugments에서 받음
     };
-  }, [allItems, allAugments]);
+  }, [categorizedItemsFromTFTData, allAugments]);
+
+
+  // 💡 수정: 탭 정의 - 새로운 분류 카테고리 추가
+  const tabs = [
+    { id: 'basic', name: '기본 아이템', items: categorizedItems.basic },
+    { id: 'completed', name: '완성 아이템', items: categorizedItems.completed },
+    { id: 'ornn', name: '오른 아이템', items: categorizedItems.ornn },
+    { id: 'radiant', name: '찬란한 아이템', items: categorizedItems.radiant },
+    { id: 'emblem', name: '상징 아이템', items: categorizedItems.emblem },
+    { id: 'support', name: '지원 아이템', items: categorizedItems.support }, // 💡 추가
+    { id: 'robot', name: '골렘/봇 아이템', items: categorizedItems.robot },   // 💡 추가
+    { id: 'augments', name: '증강체', items: categorizedItems.augments },
+  ];
 
   if (loading) {
     return <div className="text-gray-300">아이템 목록 로딩 중...</div>;
   }
 
   return (
-    <div className="bg-gray-800 p-4 rounded-lg text-white space-y-4 h-full overflow-y-auto">
+    <div className="bg-gray-800 p-4 rounded-lg text-white space-y-4 h-full flex flex-col">
       <h2 className="text-xl font-bold">아이템</h2>
 
-      <section>
-        <h3 className="font-semibold mb-2">기본 아이템 (재료)</h3>
-        <div className="flex flex-wrap">
-          {categorizedItems.basicItems.length > 0
-            ? categorizedItems.basicItems.map(item => (
-                <DraggableItem key={item.apiName} item={item} />
-              ))
-            : <p className="text-gray-400 text-sm">재료 아이템이 없습니다.</p>
-          }
-        </div>
-      </section>
-      
-      <section>
-        <h3 className="font-semibold mb-2">완성 아이템</h3>
-        <div className="flex flex-wrap">
-          {categorizedItems.completedItems.length > 0
-            ? categorizedItems.completedItems.map(item => (
-                <DraggableItem key={item.apiName} item={item} />
-              ))
-            : <p className="text-gray-400 text-sm">완성 아이템이 없습니다.</p>
-          }
-        </div>
-      </section>
+      <div className="flex border-b border-gray-700 mb-4 overflow-x-auto">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            className={`py-2 px-4 text-sm font-medium focus:outline-none whitespace-nowrap 
+                        ${activeTab === tab.id ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-gray-300'}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.name} ({tab.items.length})
+          </button>
+        ))}
+      </div>
 
-      <section>
-        <h3 className="font-semibold mb-2">오른 아이템 (유물)</h3>
-        <div className="flex flex-wrap">
-          {categorizedItems.ornnItems.length > 0
-            ? categorizedItems.ornnItems.map(item => (
-                <DraggableItem key={item.apiName} item={item} />
-              ))
-            : <p className="text-gray-400 text-sm">오른 아이템이 없습니다.</p>
-          }
-        </div>
-      </section>
-
-      <section>
-        <h3 className="font-semibold mb-2">찬란한 아이템</h3>
-        <div className="flex flex-wrap">
-          {categorizedItems.radiantItems.length > 0
-            ? categorizedItems.radiantItems.map(item => (
-                <DraggableItem key={item.apiName} item={item} />
-              ))
-            : <p className="text-gray-400 text-sm">찬란한 아이템이 없습니다.</p>
-          }
-        </div>
-      </section>
-
-      <section>
-        <h3 className="font-semibold mb-2">상징 아이템</h3>
-        <div className="flex flex-wrap">
-          {categorizedItems.emblemItems.length > 0
-            ? categorizedItems.emblemItems.map(item => (
-                <DraggableItem key={item.apiName} item={item} />
-              ))
-            : <p className="text-gray-400 text-sm">상징 아이템이 없습니다.</p>
-          }
-        </div>
-      </section>
-      
-      <section>
-        <h3 className="font-semibold mb-2">증강체</h3>
-        <div className="flex flex-wrap">
-          {categorizedItems.augments.length > 0
-            ? categorizedItems.augments.map(aug => (
-                <DraggableItem key={aug.apiName} item={aug} />
-              ))
-            : <p className="text-gray-400 text-sm">증강체가 없습니다.</p>
-          }
-        </div>
-      </section>
-
-      {/* 디버깅용: 분류되지 않은 아이템이 있다면 표시 */}
-      {categorizedItems.unknownItems.length > 0 && (
-          <section>
-              <h3 className="font-semibold mb-2 text-red-400">분류되지 않은 아이템 (확인 필요)</h3>
-              <div className="flex flex-wrap">
-              {categorizedItems.unknownItems.map(item => (
-                  <DraggableItem key={item.apiName} item={item} />
-              ))}
-              </div>
+      <div className="flex-grow overflow-y-auto">
+        {tabs.map(tab => (
+          <section key={tab.id} className={activeTab === tab.id ? '' : 'hidden'}>
+            <div className="flex flex-wrap">
+              {tab.items.length > 0
+                ? tab.items.map(item => (
+                    <DraggableItem key={item.apiName} item={item} />
+                  ))
+                : <p className="text-gray-400 text-sm p-2">해당 카테고리에 아이템이 없습니다.</p>
+              }
+            </div>
           </section>
-      )}
+        ))}
+      </div>
     </div>
   );
 }

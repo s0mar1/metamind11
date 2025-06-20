@@ -4,47 +4,113 @@ import axios from 'axios';
 
 let tftData = null;
 
-const EN_URL = 'https://raw.communitydragon.org/pbe/cdragon/tft/en_us.json';
-const KR_URL = 'https://raw.communitydragon.org/pbe/cdragon/tft/ko_kr.json';
+const EN_URL = 'https://raw.communitydragon.org/latest/cdragon/tft/en_us.json';
+const KR_URL = 'https://raw.communitydragon.org/latest/cdragon/tft/ko_kr.json';
+
+const CDN_URL_PLUGINS_BASE = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/';
+const CDN_URL_GAME_BASE = 'https://raw.communitydragon.org/latest/game/';
+
+export const IDX2KEY = ['inactive', 'bronze', 'silver', 'gold', 'prismatic'];
+export const STYLE_ORDER = { inactive: 0, bronze: 1, silver: 2, gold: 3, prismatic: 4, chromatic: 5 };
+
+export const PALETTE = {
+  bronze   : '#B06A49',
+  silver   : '#D0D6D9',
+  gold     : '#E6C68C',
+  prismatic: '#FFFFFF',
+  unique   : '#FFA773',
+  inactive : '#6C757D',
+};
+
+// 💡 수정: toPNG 함수에서 _tft_setXX 패턴 제거 로직 삭제 (원본 경로를 유지)
+const toPNG = (path) => {
+  if (!path) return null;
+  let lowerPath = path.toLowerCase();
+
+  // .tex 또는 .dds 확장자를 .png로 변경
+  if (lowerPath.endsWith('.tex') || lowerPath.endsWith('.dds')) {
+    lowerPath = lowerPath.replace(/\.(tex|dds)$/, '.png');
+  }
+
+  // 파일 확장자가 없는 경우 .png 추가 (다른 유효한 확장자가 없는 경우에만)
+  const lastDotIndex = lowerPath.lastIndexOf('.');
+  const lastSlashIndex = lowerPath.lastIndexOf('/');
+  if (lastDotIndex === -1 || lastDotIndex < lastSlashIndex) {
+      if (!lowerPath.endsWith('.png') && !lowerPath.endsWith('.jpg') && !lowerPath.endsWith('.jpeg') && !lowerPath.endsWith('.gif')) {
+          lowerPath = `${lowerPath}.png`;
+      }
+  }
+
+  // 💡 핵심: 제공된 아이템/증강체 경로 패턴에 맞춰 CDN_URL_GAME_BASE 사용
+  // /game/assets/maps/tft/icons/... 패턴을 따르는지 확인
+  if (lowerPath.includes('assets/maps/tft/icons/')) {
+    const processedPath = lowerPath.substring(lowerPath.indexOf('assets/maps/tft/icons/'));
+    return `${CDN_URL_GAME_BASE}${processedPath}`;
+  }
+  // 그 외 챔피언 tileIcon 등 다른 플러그인 베이스를 따르는 경로
+  else if (lowerPath.startsWith('/lol-game-data/assets/')) {
+    const processedPath = lowerPath.substring('/lol-game-data/assets/'.length);
+    return `${CDN_URL_PLUGINS_BASE}assets/${processedPath}`;
+  } else if (lowerPath.startsWith('assets/')) {
+    const processedPath = lowerPath.substring('assets/'.length);
+    return `${CDN_URL_PLUGINS_BASE}assets/${processedPath}`;
+  }
+  else if (lowerPath.startsWith('characters/') || lowerPath.startsWith('v1/champion-icons/')) {
+    return `${CDN_URL_PLUGINS_BASE}${lowerPath}`;
+  }
+  // `maps/`로 시작하지만 `tft/icons` 포함하지 않는 다른 경우
+  else if (lowerPath.startsWith('maps/')) {
+    // `assets/`가 이미 제거된 후 `maps/`로 시작하는 경우
+    return `${CDN_URL_GAME_BASE}assets/${lowerPath}`;
+  }
+  else {
+    // Unrecognized path pattern for: ASSETS/ ... (예외 처리)
+    console.warn(`WARN_TOPNG: Unrecognized path pattern for: ${path}. Attempting default plugins/assets/ base.`);
+    return `${CDN_URL_PLUGINS_BASE}assets/${lowerPath}`;
+  }
+};
+
+export const getTraitStyleInfo = (traitApiName, currentUnitCount, tftStaticData) => { /* ... 변동 없음 ... */ };
 
 const getTFTData = async () => {
-  // 이미 데이터가 로드되었다면 캐시된 데이터를 즉시 반환
   if (tftData) {
     return tftData;
   }
   try {
     console.log('TFT 데이터 서비스를 초기화합니다...');
     
-    // 1. 영문/한글 데이터를 동시에 받아옵니다.
     const [enResponse, krResponse] = await Promise.all([
       axios.get(EN_URL),
       axios.get(KR_URL)
     ]);
 
     const enData = enResponse.data;
-    const krData = krResponse.data;
+    const rawKrData = krResponse.data;
     
-    // 2. 최신 시즌 키를 찾습니다. (예: "11")
     const currentSetKey = Object.keys(enData.sets).sort((a, b) => parseInt(b) - parseInt(a))[0];
     const enSetData = enData.sets[currentSetKey];
-    const krSetData = krData.sets[currentSetKey];
+    const krSetData = rawKrData.sets[currentSetKey];
 
-    // 3. 한글 이름 데이터를 Map 형태로 미리 만들어둡니다. (빠른 조회를 위함)
     const krChampionNames = new Map(krSetData.champions.map(c => [c.apiName, c.name]));
+    // 💡 수정: krTraitNames 맵핑 오타 수정 (`c` -> `t`)
     const krTraitNames = new Map(krSetData.traits.map(t => [t.apiName, t.name]));
-    const krItemNames = new Map(krData.items.map(i => [i.apiName, i.name])); // 아이템 한글 이름 맵 추가
+    const krItemNames = new Map();
+    enData.items.forEach(enItem => {
+        const krFoundItem = rawKrData.items.find(krIt => krIt.apiName === enItem.apiName);
+        if (krFoundItem) {
+            krItemNames.set(enItem.apiName, krFoundItem.name);
+        } else {
+            krItemNames.set(enItem.apiName, enItem.name);
+        }
+    });
 
-    const currentSetPrefix = `TFT${currentSetKey}_`; // 현재 시즌의 apiName 접두사 (예: TFT11_)
-
-    // 4. 영문 데이터를 기준으로, 이름만 한글로 교체하고 불필요한 유닛을 필터링합니다.
     const champions = enSetData.champions
         .filter(champ => champ.cost > 0 && champ.traits.length > 0 && !champ.apiName.includes('Tutorial'))
         .map(champ => {
-            // 💡 디버깅용 로그: 챔피언의 traits 필드 확인
-            // console.log(`[DEBUG] Champion ${champ.apiName}: traits = ${JSON.stringify(champ.traits)}`);
             return {
                 ...champ,
-                name: krChampionNames.get(champ.apiName) || champ.name, // 한글 이름이 있으면 한글로, 없으면 영어 이름 사용
+                name: krChampionNames.get(champ.apiName) || champ.name,
+                tileIcon: toPNG(champ.tileIcon) 
             };
         });
 
@@ -52,50 +118,112 @@ const getTFTData = async () => {
     enSetData.traits.forEach(trait => {
         const krName = krTraitNames.get(trait.apiName);
         if (krName) {
-            trait.name = krName; // 특성 이름도 한글로 교체
+            trait.name = krName;
         }
+        trait.icon = toPNG(trait.icon); 
         traitMap.set(trait.apiName.toLowerCase(), trait);
     });
 
-    // 💡 아이템 필터링 로직 강화: 현재 Set에 해당하는 아이템만 가져오고, 덱 빌더에서 불필요한 아이템 제외
-    const items = enData.items
-        .filter(item => {
-            // 1. 현재 Set 접두사로 필터링 (가장 먼저)
-            if (!item.apiName.startsWith(currentSetPrefix)) return false;
+    // 💡 핵심 수정: 아이템 로딩 및 분류 로직 강화 (제공된 표 기반)
+    const basicItems = [];
+    const completedItems = [];
+    const ornnItems = [];
+    const radiantItems = [];
+    const emblemItems = [];
+    const supportItems = []; // 💡 추가: 지원 아이템 카테고리
+    const robotItems = [];   // 💡 추가: 골렘/봇 아이템 카테고리
+    const processedAugments = []; // 증강체
 
-            // 2. 덱 빌더에서 사용하지 않을 불필요한 아이템 타입 제외
-            const excludedItemApiPatterns = [
-                '_Consumable_', '_ChampSpawner_', '_Poro_', '_ItemRemover_', '_Gold_', '_Shovel_', '_Tome_',
-                '_Map_', '_Orb_', '_Portal_', '_Placeholder_', '_TrainingDummy_', '_Dummy_',
-                '_Debug_', // 디버그 아이템
-            ];
-            const apiNameLower = item.apiName?.toLowerCase();
-            for (const pattern of excludedItemApiPatterns) {
-                if (apiNameLower?.includes(pattern.toLowerCase())) {
-                    return false;
-                }
-            }
-            return true;
-        })
-        .map(item => ({
+    enData.items.forEach(item => {
+        const apiName = item.apiName?.toLowerCase();
+        const iconPath = item.icon?.toLowerCase();
+
+        // 1. 기본 필터링 (불필요/깨지는 아이템 제외)
+        // Set14 데이터 기반, 제공해주신 표에 없는 또는 명백히 문제있는 아이템 필터링
+        if (
+            !item.icon || // 아이콘 경로 없는 경우
+            iconPath.includes('_placeholder') || iconPath.includes('_debug') || iconPath.includes('_test') ||
+            apiName.includes('_debug_') || apiName.includes('_test_') || apiName.includes('_placeholder_') ||
+            apiName.includes('trainingdummy') || apiName.includes('unstableconcoction') ||
+            // 이전 세트 아이템 필터링: composition 없고, 증강체도 유니크도 아닌 _setXX_ 아이템만 거름 (표에 없는 항목)
+            (apiName.includes('_set') && !apiName.includes('_set' + currentSetKey + '_') && !item.composition?.length && item.type !== 'Augment' && !item.isUnique && !(item.associatedTraits && item.associatedTraits.length > 0))
+        ) {
+            return;
+        }
+
+        const krName = krItemNames.get(item.apiName);
+        const processedItem = {
             ...item,
-            name: krItemNames.get(item.apiName) || item.name, // 한글 이름 적용
-        }));
+            name: krName || item.name,
+            icon: toPNG(item.icon) // 아이콘 경로 toPNG 처리
+        };
 
-    // 5. 최종적으로 정제된 데이터를 tftData 변수에 저장합니다.
+        // 2. 증강체 분류 (가장 먼저 분리)
+        if (iconPath.includes('augments/') || apiName.includes('augments') || item.type === 'Augment') {
+            processedAugments.push(processedItem);
+            return;
+        }
+
+        // 3. 제공된 표의 분류 기준에 따라 아이템 분류
+        if (iconPath.includes('items/components/')) { // 조각(컴포넌트) 아이템
+            basicItems.push(processedItem);
+        } else if (iconPath.includes('items/radiant/')) { // 찬란한 아이템
+            radiantItems.push(processedItem);
+        } else if (iconPath.includes('items/artifacts/') || apiName.includes('ornn') || apiName.includes('artifact')) { // 유물(Ornn Artifact) 아이템
+            ornnItems.push(processedItem);
+        } else if (iconPath.includes('items/emblems/') || (item.associatedTraits && item.associatedTraits.length > 0)) { // 상징 아이템
+            emblemItems.push(processedItem);
+        } else if (iconPath.includes('items/special/support/')) { // 지원(Team-Boost) 아이템
+            supportItems.push(processedItem);
+        } else if (
+            // 골렘 및 봇 아이템 (apiName으로 명확히 구분)
+            apiName.includes('corruptedchassis') || apiName.includes('cybercoil') || apiName.includes('fluxcapacitor') ||
+            apiName.includes('holobow') || apiName.includes('hyperfangs') || apiName.includes('pulsestabilizer') ||
+            apiName.includes('repulsorlantern') || apiName.includes('tft_item_corruptedchassis') || apiName.includes('tft_item_cybercoil') ||
+            apiName.includes('tft_item_fluxcapacitor') || apiName.includes('tft_item_holobow') || apiName.includes('tft_item_hyperfangs') ||
+            apiName.includes('tft_item_pulsestabilizer') || apiName.includes('tft_item_repulsorlantern')
+        ) {
+            robotItems.push(processedItem);
+        } else if (item.composition && item.composition.length > 0) { // 조합식이 있는 완성 아이템
+            completedItems.push(processedItem);
+        } else if (apiName.startsWith('tft_item_') && !apiName.includes('_component_') && item.goldValue > 0) {
+            // apiName이 tft_item_으로 시작하고 재료가 아니며 goldValue가 있는 경우 (나머지 완성템)
+            completedItems.push(processedItem);
+        }
+        else {
+            // 위 분류에 해당하지 않는 아이템은 일단 완성 아이템으로 간주 (fallback)
+            // console.warn('tftData: Item not categorized (fallback to completed):', item.name, item.apiName, iconPath);
+            completedItems.push(processedItem);
+        }
+    });
+
     tftData = {
-      items: items, // ⬅️ 시즌 필터링 및 한글 이름 적용된 아이템 목록
-      champions: champions, // ⬅️ 챔피언 traits 데이터가 정확히 포함되는지 확인 중요
-      traitMap: traitMap,   // ⬅️ 한글 이름이 적용된 특성 Map
+      items: { // 💡 수정: 분류된 아이템들을 반환
+        basic: basicItems,
+        completed: completedItems,
+        ornn: ornnItems,
+        radiant: radiantItems,
+        emblem: emblemItems,
+        support: supportItems, // 💡 추가: 지원 아이템
+        robot: robotItems,     // 💡 추가: 골렘/봇 아이템
+      },
+      augments: processedAugments, // 증강체
+      champions: champions,
+      traitMap: traitMap,
       currentSet: `Set${currentSetKey}`,
+      krNameMap: new Map([
+        ...Array.from(krChampionNames.entries()).map(([key, value]) => [key.toLowerCase(), value]),
+        ...Array.from(krTraitNames.entries()).map(([key, value]) => [key.toLowerCase(), value]),
+        ...Array.from(krItemNames.entries()).map(([key, value]) => [key.toLowerCase(), value])
+      ])
     };
     
-    console.log(`TFT 데이터 초기화 완료! (시즌: ${tftData.currentSet}, 챔피언 ${tftData.champions.length}개, 아이템 ${tftData.items.length}개)`);
+    console.log(`TFT 데이터 초기화 완료! (시즌: ${tftData.currentSet}, 챔피언 ${tftData.champions.length}개, 아이템 ${tftData.items.length}개, 증강체 ${tftData.augments.length}개)`);
     return tftData;
 
   } catch (error) {
-    console.error('TFT 데이터 서비스 초기화 실패:', error.message);
-    tftData = null; // 실패 시 null로 유지하여 다음 요청 시 재시도하도록 함
+    console.error(`TFT 데이터 서비스 초기화 실패: ${error.message}`);
+    tftData = null;
     return null;
   }
 };

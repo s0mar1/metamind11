@@ -1,21 +1,11 @@
-// routes/match.js (최종 수정 완료)
+// routes/match.js
 
 import express from 'express';
 import { getMatchDetail } from '../services/riotApi.js';
-import getTFTData from '../services/tftData.js';
-import { getAccountsByPuuids } from '../services/riotAccountApi.js'; // 여러 계정 정보를 한번에 가져오는 서비스
+import getTFTData, { getTraitStyleInfo } from '../services/tftData.js';
+import { getAccountsByPuuids } from '../services/riotAccountApi.js';
 
 const router = express.Router();
-const cdn = 'https://raw.communitydragon.org/latest/game/';
-
-// summoner.js와 동일한 상수 및 헬퍼 함수
-const IDX2KEY = ['inactive', 'bronze', 'silver', 'gold', 'prismatic'];
-const STYLE_ORDER = { bronze: 1, silver: 2, gold: 3, prismatic: 4, unique: 4 };
-const PALETTE = {
-  bronze: '#C67A32', silver: '#BFC4CF', gold: '#FFD667',
-  prismatic: '#CFF1F1', unique: '#FFA773',
-};
-const toPNG = p => p ? `${cdn}${p.toLowerCase().replace(/\.(tex|dds)$/, '.png')}` : null;
 
 router.get('/:matchId', async (req, res, next) => {
   try {
@@ -24,80 +14,91 @@ router.get('/:matchId', async (req, res, next) => {
       return res.status(400).json({ error: 'Match ID가 필요합니다.' });
     }
 
-    // 1. TFT 마스터 데이터와 경기 상세 정보를 가져옵니다.
     const tft = await getTFTData();
     const matchDetail = await getMatchDetail(matchId);
 
-    if (!tft || !matchDetail) {
-      return res.status(503).json({ error: '데이터 로딩에 실패했습니다.' });
+    if (!tft || !tft.traitMap?.size || !tft.champions?.length || !tft.items?.length || !tft.krNameMap) {
+      console.error('TFT static 데이터 로드 실패 또는 불완전 (match.js):', tft);
+      return res.status(503).json({ error:'TFT static 데이터가 완전하지 않습니다. 서버 로그를 확인해주세요.' });
+    }
+    if (!matchDetail) {
+        return res.status(404).json({ error: '매치 상세 정보를 찾을 수 없습니다.' });
     }
 
-    // 2. 해당 경기에 참여한 모든 소환사의 puuid 목록을 만듭니다.
     const puuids = matchDetail.info.participants.map(p => p.puuid);
-    // 3. 모든 소환사의 계정 정보를 한번에 가져옵니다.
     const accounts = await getAccountsByPuuids(puuids);
 
-    // 4. 각 참여자의 유닛과 특성 데이터를 summoner.js와 동일한 최종 로직으로 처리합니다.
     const processedParticipants = matchDetail.info.participants.map(p => {
       const units = p.units.map(u => {
         const ch = tft.champions.find(c => c.apiName?.toLowerCase() === u.character_id?.toLowerCase());
+        if (!ch) {
+          console.warn(`WARN (match.js): 챔피언 ${u.character_id} (매치 ${matchDetail.metadata.match_id.substring(0,8)}...) TFT static 데이터에서 찾을 수 없음.`);
+        }
+        
+        const processedItems = (u.itemNames || []).map(n => {
+          const it = tft.items.find(i => i.apiName?.toLowerCase() === n?.toLowerCase());
+          if (!it) {
+              console.warn(`WARN (match.js): 아이템 ${n} (매치 ${matchDetail.metadata.match_id.substring(0,8)}... 유닛 ${u.character_id}) TFT static 데이터에서 찾을 수 없음.`);
+          }
+          return { name: it?.name || n, image_url: it?.icon || null }; 
+        });
+        
+        console.log(`DEBUG (match.js): Unit ${u.character_id} - ItemNames from Riot:`, u.itemNames);
+        console.log(`DEBUG (match.js): Unit ${u.character_id} - Processed Items:`, processedItems);
+
         return {
           character_id: u.character_id,
-          name: ch?.name || u.character_id, image_url: toPNG(ch?.tileIcon),
+          name: ch?.name || u.character_id, 
+          image_url: ch?.tileIcon || null, 
           tier: u.tier, cost: ch?.cost || 0,
-          items: u.itemNames.map(n => {
-            const it = tft.items.find(i => i.apiName?.toLowerCase() === n?.toLowerCase());
-            return { name: it?.name || '', image_url: toPNG(it?.icon) };
-          }),
+          items: processedItems,
         };
       });
 
-      const traitCounts = new Map();
-      for (const unit of p.units) {
-        const champData = tft.champions.find(c => c.apiName?.toLowerCase() === unit.character_id?.toLowerCase());
-        if (champData?.traits) {
-          for (const traitName of champData.traits) {
-            traitCounts.set(traitName, (traitCounts.get(traitName) || 0) + 1);
+      console.log(`DEBUG (match.js): Riot original traits for participant:`, p.traits);
+      
+      const processedTraits = (p.traits || [])
+        .map(riotTrait => {
+          const apiName = riotTrait.name;
+          const currentCount = riotTrait.num_units || riotTrait.tier_current || 0;
+
+          console.log(`DEBUG_TRAIT_PROCESS (match.js): Processing Riot Trait: ${apiName}, Raw Count (num_units): ${riotTrait.num_units}, Raw Count (tier_current): ${riotTrait.tier_current}, Final currentCount: ${currentCount}`);
+          const styleInfo = getTraitStyleInfo(apiName, currentCount, tft);
+          
+          if (!styleInfo) {
+              console.warn(`WARN (match.js): 특성 ${riotTrait.name} (매치 ${matchDetail.metadata.match_id.substring(0,8)}...) TFT static 데이터에서 찾을 수 없음. styleInfo is null.`);
+              return null;
           }
-        }
-      }
+          console.log(`DEBUG_TRAIT_PROCESS (match.js): Processed StyleInfo for ${apiName}:`, styleInfo);
 
-      const traits = [];
-      for (const [traitName, count] of traitCounts.entries()) {
-        const meta = tft.traitMap.get(traitName.toLowerCase());
-        if (!meta) continue;
+          return {
+              name: styleInfo.name,
+              apiName: styleInfo.apiName,
+              image_url: styleInfo.image_url,
+              tier_current: styleInfo.tier_current,
+              style: styleInfo.style,
+              styleOrder: styleInfo.styleOrder,
+              color: styleInfo.color,
+              currentThreshold: styleInfo.currentThreshold,
+              nextThreshold: styleInfo.nextThreshold,
+          };
+      })
+      .filter(Boolean)
+      .filter(t => t.style !== 'inactive');
 
-        const cnt = count;
-        const rows = Array.isArray(meta.effects) ? meta.effects : [];
-        const active = rows.filter(r => cnt >= r.minUnits).sort((a, b) => b.minUnits - a.minUnits)[0] ?? null;
-        if (!active) continue;
+      processedTraits.sort((a, b) => (b.styleOrder - a.styleOrder) || (b.tier_current - a.tier_current));
+      
+      console.log(`DEBUG (match.js): Processed Traits:`, processedTraits);
 
-        let styleKey = active ? (typeof active.style === 'string' ? active.style.toLowerCase() : IDX2KEY[active.style] || 'bronze') : 'bronze';
-        const topMin = rows.reduce((m, r) => Math.max(m, r.minUnits), 0);
-        if (rows.length >= 4 && styleKey === 'prismatic' && active.minUnits < topMin) styleKey = 'gold';
-        if (rows.length === 1 && rows[0].minUnits === 1) styleKey = 'unique';
-
-        const hex = (active?.styleHexColor?.trim()) ?? PALETTE[styleKey] ?? '#4B5563';
-        const displayName = tft.krNameMap.get(meta.apiName.toLowerCase()) || meta.name;
-
-        traits.push({
-          name: displayName, image_url: toPNG(meta.icon),
-          tier_current: cnt, style: styleKey,
-          styleOrder: STYLE_ORDER[styleKey], color: hex,
-        });
-      }
-      traits.sort((a, b) => (b.styleOrder - a.styleOrder) || (b.tier_current - a.tier_current));
-
-      return { ...p, units, traits };
+      return { ...p, units, traits: processedTraits };
     });
 
-    // 5. 최종적으로 가공된 데이터를 응답으로 보냅니다.
     const responsePayload = {
       ...matchDetail,
       info: {
         ...matchDetail.info,
         participants: processedParticipants,
-        accounts: Object.fromEntries(accounts), // Map을 JSON으로 보내기 위해 객체로 변환
+        accounts: Object.fromEntries(accounts),
       }
     };
 

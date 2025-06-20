@@ -10,7 +10,15 @@ import LpGraph from './components/LpGraph.jsx';
 import MatchCard from './components/MatchCard';
 
 const styles = {
-  container: { paddingTop: '2rem', paddingBottom: '4rem', maxWidth: '960px', margin: '0 auto' },
+  // 💡 수정: container에 position: relative와 overflow: hidden 추가 (가장 최상위 제어)
+  container: { 
+      paddingTop: '2rem', 
+      paddingBottom: '4rem', 
+      maxWidth: '960px', 
+      margin: '0 auto',
+      position: 'relative', // 💡 추가: 하위 absolute 요소를 제한하기 위함
+      overflow: 'hidden',   // 💡 추가: 하위 요소가 컨테이너 밖으로 나가는 것을 방지
+  },
   statsAndGraphContainer: {
     display: 'grid',
     gridTemplateColumns: 'minmax(320px, 1fr) 2fr', // 통계는 최소너비, 그래프는 넓게
@@ -63,20 +71,17 @@ export default function SummonerPage() {
         throw new Error(r.data.error || 'API 오류');
       }
       
-      // **** 중요 수정: 각 match 객체에 현재 소환사의 puuid를 추가하여 전달합니다. ****
-      // Riot API 응답의 `account` 객체에 puuid가 있다고 가정합니다.
       const currentUserPuuid = r.data.account.puuid; 
       
       const processedMatches = r.data.matches.map(match => ({
           ...match,
-          puuid: currentUserPuuid // AI 분석을 위해 puuid 추가
+          puuid: currentUserPuuid 
       }));
 
       setData({
           ...r.data,
           matches: processedMatches
       });
-      // ************************************************************************
 
     } catch (e) {
       setError(e.response?.data?.error || e.message);
@@ -96,7 +101,7 @@ export default function SummonerPage() {
   if (!data)             return null;
 
   return (
-    <div style={styles.container}>
+    <div style={styles.container}> {/* 💡 수정: 여기에 position: relative와 overflow: hidden 적용 */}
       <ProfileHeader
         account={data.account}
         region={region}
@@ -116,11 +121,12 @@ export default function SummonerPage() {
       </div>
       
       {data.matches?.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        // 💡 수정: MatchCard들을 감싸는 div에 z-index를 추가하여 스태킹 컨텍스트 상위로 올림
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, position: 'relative', zIndex: 1 }}> 
           {data.matches.map(m => (
             <MatchCard
               key={m.matchId}
-              match={m} // 이제 m 객체 안에 puuid가 포함되어 전달됩니다.
+              match={m} 
               onToggle={id => setExpanded(prev => (prev === id ? null : id))}
               isExpanded={expanded === m.matchId}
             />
