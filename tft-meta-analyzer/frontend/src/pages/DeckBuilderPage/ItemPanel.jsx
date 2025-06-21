@@ -6,7 +6,7 @@ import { useTFTData } from '../../context/TFTDataContext';
 function DraggableItem({ item }) {
   const [{ isDragging }, drag] = useDrag({
     type: ItemTypes.ITEM,
-    item: { item }, // item 객체 전체를 전달
+    item: { item },
     collect: monitor => ({
       isDragging: monitor.isDragging(),
     }),
@@ -17,7 +17,7 @@ function DraggableItem({ item }) {
       ref={drag}
       style={{
         opacity: isDragging ? 0.5 : 1,
-        cursor: 'grab', // cursor style to indicate draggable
+        cursor: 'grab',
         width: 40,
         height: 40,
         margin: 2,
@@ -28,50 +28,74 @@ function DraggableItem({ item }) {
         src={item.icon}
         alt={item.name}
         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        onError={(e) => {
+            e.currentTarget.src = '/item_fallback.png';
+            e.currentTarget.onerror = null;
+        }}
       />
     </div>
   );
 }
 
 export default function ItemPanel() {
-  // 💡 수정: allItems는 이제 tftData.items의 분류된 객체로 받음
-  const { items: categorizedItemsFromTFTData, augments: allAugments, loading } = useTFTData();
+  const { items: itemsByCategory, augments: allAugments, loading, error } = useTFTData(); // 💡 error도 가져옴
   const [activeTab, setActiveTab] = useState('basic');
 
-  // 💡 수정: useMemo 로직 간소화 (tftData에서 이미 분류되어 넘어오므로)
   const categorizedItems = useMemo(() => {
-    if (!categorizedItemsFromTFTData) {
+    // 💡 추가: itemsByCategory와 allAugments의 내용 로그
+    console.log('DEBUG_ITEMPANEL_DATA: itemsByCategory (from useTFTData):', itemsByCategory);
+    console.log('DEBUG_ITEMPANEL_DATA: allAugments (from useTFTData):', allAugments);
+
+    if (!itemsByCategory) {
       return {
-        basic: [], completed: [], ornn: [], radiant: [], emblem: [], support: [], robot: [], augments: [],
+        basic: [], completed: [], ornn: [], radiant: [], emblem: [], support: [], robot: [], augments: [], unknown: [],
       };
     }
     return {
-      basic: categorizedItemsFromTFTData.basic || [],
-      completed: categorizedItemsFromTFTData.completed || [],
-      ornn: categorizedItemsFromTFTData.ornn || [],
-      radiant: categorizedItemsFromTFTData.radiant || [],
-      emblem: categorizedItemsFromTFTData.emblem || [],
-      support: categorizedItemsFromTFTData.support || [], // 💡 추가: support items
-      robot: categorizedItemsFromTFTData.robot || [],     // 💡 추가: robot items
-      augments: allAugments || [], // 증강체는 여전히 allAugments에서 받음
+      basic: itemsByCategory.basic || [],
+      completed: itemsByCategory.completed || [],
+      ornn: itemsByCategory.ornn || [],
+      radiant: itemsByCategory.radiant || [],
+      emblem: itemsByCategory.emblem || [],
+      support: itemsByCategory.support || [],
+      robot: itemsByCategory.robot || [],
+      augments: allAugments || [],
+      unknown: itemsByCategory.unknown || [],
     };
-  }, [categorizedItemsFromTFTData, allAugments]);
+  }, [itemsByCategory, allAugments]);
+
+  // 💡 추가: 각 카테고리 배열의 길이 로그
+  console.log('DEBUG_ITEMPANEL_CATEGORIES_LENGTH:', {
+      basic: categorizedItems.basic.length,
+      completed: categorizedItems.completed.length,
+      ornn: categorizedItems.ornn.length,
+      radiant: categorizedItems.radiant.length,
+      emblem: categorizedItems.emblem.length,
+      support: categorizedItems.support.length,
+      robot: categorizedItems.robot.length,
+      augments: categorizedItems.augments.length,
+      unknown: categorizedItems.unknown.length,
+  });
 
 
-  // 💡 수정: 탭 정의 - 새로운 분류 카테고리 추가
   const tabs = [
     { id: 'basic', name: '기본 아이템', items: categorizedItems.basic },
     { id: 'completed', name: '완성 아이템', items: categorizedItems.completed },
     { id: 'ornn', name: '오른 아이템', items: categorizedItems.ornn },
     { id: 'radiant', name: '찬란한 아이템', items: categorizedItems.radiant },
     { id: 'emblem', name: '상징 아이템', items: categorizedItems.emblem },
-    { id: 'support', name: '지원 아이템', items: categorizedItems.support }, // 💡 추가
-    { id: 'robot', name: '골렘/봇 아이템', items: categorizedItems.robot },   // 💡 추가
+    { id: 'support', name: '지원 아이템', items: categorizedItems.support },
+    { id: 'robot', name: '골렘/봇 아이템', items: categorizedItems.robot },
     { id: 'augments', name: '증강체', items: categorizedItems.augments },
+    { id: 'unknown', name: '미분류', items: categorizedItems.unknown }, // 미분류 탭 추가
   ];
 
   if (loading) {
     return <div className="text-gray-300">아이템 목록 로딩 중...</div>;
+  }
+  // 💡 추가: 에러 발생 시 메시지 표시
+  if (error) {
+    return <div className="text-red-400">데이터 로딩 오류: {error}</div>;
   }
 
   return (

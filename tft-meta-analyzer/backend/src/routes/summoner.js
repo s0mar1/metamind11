@@ -8,7 +8,7 @@ import {
   getMatchIdsByPUUID,
   getMatchDetail,
 } from '../services/riotApi.js';
-import getTFTData, { getTraitStyleInfo } from '../services/tftData.js'; // getTraitStyleInfo import
+import getTFTData, { getTraitStyleInfo } from '../services/tftData.js';
 import NodeCache  from 'node-cache';
 
 const router = express.Router();
@@ -27,7 +27,9 @@ router.get('/', async (req, res, next) => {
     }
 
     const tft = await getTFTData();
-    if (!tft || !tft.traitMap?.size || !tft.champions?.length || !tft.items?.length || !tft.krNameMap) {
+    // 💡 수정: tft.items?.completed?.length (예시)로 데이터를 검사
+    //    tft.items가 객체이므로, 특정 카테고리 배열이 비어있지 않은지 확인
+    if (!tft || !tft.traitMap?.size || !tft.champions?.length || !tft.items?.completed?.length || !tft.krNameMap) {
       console.error('TFT static 데이터 로드 실패 또는 불완전:', tft);
       return res.status(503).json({ error:'TFT static 데이터가 완전하지 않습니다. 서버 로그를 확인해주세요.' });
     }
@@ -63,11 +65,21 @@ router.get('/', async (req, res, next) => {
           }
           
           const processedItems = (u.itemNames || []).map(n => {
-            const it = tft.items.find(i => i.apiName?.toLowerCase() === n?.toLowerCase());
-            if (!it) {
+            // 💡 수정: tft.items가 객체이므로, 모든 아이템 카테고리 배열을 순회하여 아이템을 찾도록 변경
+            let foundItem = null;
+            // 모든 아이템 카테고리를 순회하며 아이템을 찾습니다.
+            for (const category in tft.items) {
+                // tft.items[category]가 배열이고, 그 안에 아이템이 있다면
+                if (Array.isArray(tft.items[category])) {
+                    foundItem = tft.items[category].find(i => i.apiName?.toLowerCase() === n?.toLowerCase());
+                    if (foundItem) break; // 찾았으면 반복 중단
+                }
+            }
+
+            if (!foundItem) {
                 console.warn(`WARN: 아이템 ${n} (매치 ${match.metadata.match_id.substring(0,8)}... 유닛 ${u.character_id}) TFT static 데이터에서 찾을 수 없음.`);
             }
-            return { name: it?.name || n, image_url: it?.icon || null }; 
+            return { name: foundItem?.name || n, image_url: foundItem?.icon || null }; 
           });
           
           console.log(`DEBUG: Unit ${u.character_id} - ItemNames from Riot:`, u.itemNames);

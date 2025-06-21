@@ -22,17 +22,14 @@ export const PALETTE = {
   inactive : '#6C757D',
 };
 
-// 💡 수정: toPNG 함수에서 _tft_setXX 패턴 제거 로직 삭제 (원본 경로를 유지)
 const toPNG = (path) => {
   if (!path) return null;
   let lowerPath = path.toLowerCase();
 
-  // .tex 또는 .dds 확장자를 .png로 변경
   if (lowerPath.endsWith('.tex') || lowerPath.endsWith('.dds')) {
     lowerPath = lowerPath.replace(/\.(tex|dds)$/, '.png');
   }
 
-  // 파일 확장자가 없는 경우 .png 추가 (다른 유효한 확장자가 없는 경우에만)
   const lastDotIndex = lowerPath.lastIndexOf('.');
   const lastSlashIndex = lowerPath.lastIndexOf('/');
   if (lastDotIndex === -1 || lastDotIndex < lastSlashIndex) {
@@ -41,13 +38,10 @@ const toPNG = (path) => {
       }
   }
 
-  // 💡 핵심: 제공된 아이템/증강체 경로 패턴에 맞춰 CDN_URL_GAME_BASE 사용
-  // /game/assets/maps/tft/icons/... 패턴을 따르는지 확인
   if (lowerPath.includes('assets/maps/tft/icons/')) {
     const processedPath = lowerPath.substring(lowerPath.indexOf('assets/maps/tft/icons/'));
     return `${CDN_URL_GAME_BASE}${processedPath}`;
   }
-  // 그 외 챔피언 tileIcon 등 다른 플러그인 베이스를 따르는 경로
   else if (lowerPath.startsWith('/lol-game-data/assets/')) {
     const processedPath = lowerPath.substring('/lol-game-data/assets/'.length);
     return `${CDN_URL_PLUGINS_BASE}assets/${processedPath}`;
@@ -58,19 +52,97 @@ const toPNG = (path) => {
   else if (lowerPath.startsWith('characters/') || lowerPath.startsWith('v1/champion-icons/')) {
     return `${CDN_URL_PLUGINS_BASE}${lowerPath}`;
   }
-  // `maps/`로 시작하지만 `tft/icons` 포함하지 않는 다른 경우
   else if (lowerPath.startsWith('maps/')) {
-    // `assets/`가 이미 제거된 후 `maps/`로 시작하는 경우
     return `${CDN_URL_GAME_BASE}assets/${lowerPath}`;
   }
   else {
-    // Unrecognized path pattern for: ASSETS/ ... (예외 처리)
     console.warn(`WARN_TOPNG: Unrecognized path pattern for: ${path}. Attempting default plugins/assets/ base.`);
     return `${CDN_URL_PLUGINS_BASE}assets/${lowerPath}`;
   }
 };
 
-export const getTraitStyleInfo = (traitApiName, currentUnitCount, tftStaticData) => { /* ... 변동 없음 ... */ };
+export const getTraitStyleInfo = (traitApiName, currentUnitCount, tftStaticData) => {
+    const meta = tftStaticData.traitMap.get(traitApiName.toLowerCase());
+    if (!meta) {
+        return null;
+    }
+
+    let styleKey = 'inactive';
+    let styleOrder = 0;
+    let currentThreshold = 0;
+    let nextThreshold = null;
+    
+    const relevantEffects = (meta.effects || [])
+                                .filter(effect => effect.minUnits > 0)
+                                .sort((a,b) => a.minUnits - b.minUnits);
+
+    let activeEffectForCount = null;
+    for (const effect of relevantEffects) {
+        if (currentUnitCount >= effect.minUnits) {
+            activeEffectForCount = effect;
+        } else {
+            if (nextThreshold === null) {
+                nextThreshold = effect.minUnits;
+            }
+        }
+    }
+
+    if (activeEffectForCount) {
+        currentThreshold = activeEffectForCount.minUnits;
+        const rawStyleNumber = activeEffectForCount.style;
+
+        console.log(`DEBUG_STYLE_MAPPING: Trait: ${traitApiName}, Count: ${currentUnitCount}, Raw Style Num from CD: ${rawStyleNumber}`);
+
+        switch (rawStyleNumber) {
+            case 1:
+                styleKey = 'bronze';
+                break;
+            case 3:
+                styleKey = 'silver';
+                break;
+            case 4:
+                styleKey = 'chromatic';
+                break;
+            case 5:
+                styleKey = 'gold';
+                break;
+            case 6:
+                styleKey = 'prismatic';
+                break;
+            case 2:
+                styleKey = 'inactive';
+                console.warn(`WARN_STYLE_MAPPING: style:2 detected for trait ${traitApiName}. Currently treated as inactive.`);
+                break;
+            default:
+                styleKey = 'inactive';
+                console.warn(`WARN_STYLE_MAPPING: Unknown rawStyleNumber ${rawStyleNumber} for trait ${traitApiName}. Falling back to inactive.`);
+                break;
+        }
+        console.log(`DEBUG_STYLE_MAPPING: Assigned styleKey: ${styleKey} based on Raw Style Num: ${rawStyleNumber}`);
+
+        styleOrder = STYLE_ORDER[styleKey] || 0;
+    } else {
+        currentThreshold = 0;
+        styleKey = 'inactive';
+        styleOrder = 0;
+    }
+    
+    const finalColor = PALETTE[styleKey] ?? PALETTE['inactive'];
+    const displayName = tftStaticData.krNameMap.get(traitApiName.toLowerCase()) || meta.name;
+
+    return {
+        name: displayName,
+        apiName: traitApiName,
+        image_url: meta.icon || null,
+        tier_current: currentUnitCount,
+        currentThreshold: currentThreshold,
+        nextThreshold: nextThreshold,
+        style: styleKey,
+        styleOrder: styleOrder,
+        color: finalColor,
+    };
+};
+
 
 const getTFTData = async () => {
   if (tftData) {
@@ -92,7 +164,6 @@ const getTFTData = async () => {
     const krSetData = rawKrData.sets[currentSetKey];
 
     const krChampionNames = new Map(krSetData.champions.map(c => [c.apiName, c.name]));
-    // 💡 수정: krTraitNames 맵핑 오타 수정 (`c` -> `t`)
     const krTraitNames = new Map(krSetData.traits.map(t => [t.apiName, t.name]));
     const krItemNames = new Map();
     enData.items.forEach(enItem => {
@@ -124,28 +195,26 @@ const getTFTData = async () => {
         traitMap.set(trait.apiName.toLowerCase(), trait);
     });
 
-    // 💡 핵심 수정: 아이템 로딩 및 분류 로직 강화 (제공된 표 기반)
+    // 💡 핵심 수정: processedAugments 변수 초기화 추가
     const basicItems = [];
     const completedItems = [];
     const ornnItems = [];
     const radiantItems = [];
     const emblemItems = [];
-    const supportItems = []; // 💡 추가: 지원 아이템 카테고리
-    const robotItems = [];   // 💡 추가: 골렘/봇 아이템 카테고리
-    const processedAugments = []; // 증강체
+    const supportItems = [];
+    const robotItems = [];
+    const processedAugments = []; // 💡 여기에 초기화합니다!
+    const unknownItems = [];
 
     enData.items.forEach(item => {
         const apiName = item.apiName?.toLowerCase();
         const iconPath = item.icon?.toLowerCase();
 
-        // 1. 기본 필터링 (불필요/깨지는 아이템 제외)
-        // Set14 데이터 기반, 제공해주신 표에 없는 또는 명백히 문제있는 아이템 필터링
         if (
-            !item.icon || // 아이콘 경로 없는 경우
+            !item.icon ||
             iconPath.includes('_placeholder') || iconPath.includes('_debug') || iconPath.includes('_test') ||
             apiName.includes('_debug_') || apiName.includes('_test_') || apiName.includes('_placeholder_') ||
             apiName.includes('trainingdummy') || apiName.includes('unstableconcoction') ||
-            // 이전 세트 아이템 필터링: composition 없고, 증강체도 유니크도 아닌 _setXX_ 아이템만 거름 (표에 없는 항목)
             (apiName.includes('_set') && !apiName.includes('_set' + currentSetKey + '_') && !item.composition?.length && item.type !== 'Augment' && !item.isUnique && !(item.associatedTraits && item.associatedTraits.length > 0))
         ) {
             return;
@@ -155,28 +224,25 @@ const getTFTData = async () => {
         const processedItem = {
             ...item,
             name: krName || item.name,
-            icon: toPNG(item.icon) // 아이콘 경로 toPNG 처리
+            icon: toPNG(item.icon)
         };
 
-        // 2. 증강체 분류 (가장 먼저 분리)
         if (iconPath.includes('augments/') || apiName.includes('augments') || item.type === 'Augment') {
             processedAugments.push(processedItem);
             return;
         }
 
-        // 3. 제공된 표의 분류 기준에 따라 아이템 분류
-        if (iconPath.includes('items/components/')) { // 조각(컴포넌트) 아이템
+        if (iconPath.includes('items/components/')) {
             basicItems.push(processedItem);
-        } else if (iconPath.includes('items/radiant/')) { // 찬란한 아이템
+        } else if (iconPath.includes('items/radiant/')) {
             radiantItems.push(processedItem);
-        } else if (iconPath.includes('items/artifacts/') || apiName.includes('ornn') || apiName.includes('artifact')) { // 유물(Ornn Artifact) 아이템
+        } else if (iconPath.includes('items/artifacts/') || apiName.includes('ornn') || apiName.includes('artifact')) {
             ornnItems.push(processedItem);
-        } else if (iconPath.includes('items/emblems/') || (item.associatedTraits && item.associatedTraits.length > 0)) { // 상징 아이템
+        } else if (iconPath.includes('items/emblems/') || (item.associatedTraits && item.associatedTraits.length > 0)) {
             emblemItems.push(processedItem);
-        } else if (iconPath.includes('items/special/support/')) { // 지원(Team-Boost) 아이템
+        } else if (iconPath.includes('items/special/support/')) {
             supportItems.push(processedItem);
         } else if (
-            // 골렘 및 봇 아이템 (apiName으로 명확히 구분)
             apiName.includes('corruptedchassis') || apiName.includes('cybercoil') || apiName.includes('fluxcapacitor') ||
             apiName.includes('holobow') || apiName.includes('hyperfangs') || apiName.includes('pulsestabilizer') ||
             apiName.includes('repulsorlantern') || apiName.includes('tft_item_corruptedchassis') || apiName.includes('tft_item_cybercoil') ||
@@ -184,30 +250,28 @@ const getTFTData = async () => {
             apiName.includes('tft_item_pulsestabilizer') || apiName.includes('tft_item_repulsorlantern')
         ) {
             robotItems.push(processedItem);
-        } else if (item.composition && item.composition.length > 0) { // 조합식이 있는 완성 아이템
+        } else if (item.composition && item.composition.length > 0) {
             completedItems.push(processedItem);
         } else if (apiName.startsWith('tft_item_') && !apiName.includes('_component_') && item.goldValue > 0) {
-            // apiName이 tft_item_으로 시작하고 재료가 아니며 goldValue가 있는 경우 (나머지 완성템)
             completedItems.push(processedItem);
         }
         else {
-            // 위 분류에 해당하지 않는 아이템은 일단 완성 아이템으로 간주 (fallback)
-            // console.warn('tftData: Item not categorized (fallback to completed):', item.name, item.apiName, iconPath);
-            completedItems.push(processedItem);
+            unknownItems.push(processedItem);
         }
     });
 
     tftData = {
-      items: { // 💡 수정: 분류된 아이템들을 반환
+      items: {
         basic: basicItems,
         completed: completedItems,
         ornn: ornnItems,
         radiant: radiantItems,
         emblem: emblemItems,
-        support: supportItems, // 💡 추가: 지원 아이템
-        robot: robotItems,     // 💡 추가: 골렘/봇 아이템
+        support: supportItems,
+        robot: robotItems,
+        unknown: unknownItems,
       },
-      augments: processedAugments, // 증강체
+      augments: processedAugments, // 이제 processedAugments가 정의됨
       champions: champions,
       traitMap: traitMap,
       currentSet: `Set${currentSetKey}`,
@@ -218,7 +282,9 @@ const getTFTData = async () => {
       ])
     };
     
-    console.log(`TFT 데이터 초기화 완료! (시즌: ${tftData.currentSet}, 챔피언 ${tftData.champions.length}개, 아이템 ${tftData.items.length}개, 증강체 ${tftData.augments.length}개)`);
+    const totalItemCount = basicItems.length + completedItems.length + ornnItems.length + 
+                           radiantItems.length + emblemItems.length + supportItems.length + robotItems.length + unknownItems.length;
+    console.log(`TFT 데이터 초기화 완료! (시즌: ${tftData.currentSet}, 챔피언 ${tftData.champions.length}개, 아이템 ${totalItemCount}개, 증강체 ${tftData.augments.length}개)`);
     return tftData;
 
   } catch (error) {
