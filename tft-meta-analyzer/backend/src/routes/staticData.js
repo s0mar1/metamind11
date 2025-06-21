@@ -1,65 +1,89 @@
 // backend/src/routes/staticData.js
 
 import express from 'express';
-import getTFTData from '../services/tftData.js'; // tftData 서비스 임포트
+import getTFTData from '../services/tftData.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const router = express.Router();
 
-// 기존의 '/' 라우트 (tftData.items.forEach 에러 해결 로직 포함)
-router.get('/', async (req, res, next) => {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const itemsDataPath = path.join(__dirname, '..', 'data', 'tft14_items_index.json');
+
+
+router.get('/items-by-category', async (req, res, next) => {
   try {
+    // 1. tftData.js로부터 최신 "마스터 데이터베이스"를 가져옵니다.
     const tft = await getTFTData();
-
-    if (!tft || !tft.traitMap?.size || !tft.champions?.length || !tft.items?.completed?.length || !tft.krNameMap) {
-      console.error('TFT static 데이터 로드 실패 또는 불완전 (staticData.js - /):', tft);
-      return res.status(503).json({ error: 'TFT static 데이터가 완전하지 않습니다. 서버 로그를 확인해주세요.' });
+    if (!tft || !tft.items) {
+      throw new Error('TFT 아이템 데이터를 서비스에서 가져올 수 없습니다.');
     }
+    const allItemsFromService = Object.values(tft.items).flat();
 
-    // 💡 수정 지점: tftData.items.forEach가 사용되던 부분의 해결책
-    // 모든 아이템 카테고리를 순회하여 하나의 배열로 합치는 로직
-    let allItemsFlattened = [];
-    for (const categoryName in tft.items) {
-      if (Array.isArray(tft.items[categoryName])) {
-        allItemsFlattened = allItemsFlattened.concat(tft.items[categoryName]);
+    // 2. 이름의 미세한 차이를 극복하기 위한 정규화 함수를 정의합니다.
+    const normalizeName = (name) => {
+      // 소문자로 바꾸고, 모든 공백, 점(.), 따옴표(')를 제거합니다.
+      return (name || '').toLowerCase().replace(/[\s.'']/g, '');
+    };
+
+    // 3. "정규화된 한국어 이름"을 Key로 사용하는 마스터 Map을 생성합니다.
+    const masterItemMap = new Map();
+    for (const item of allItemsFromService) {
+      const normalizedKey = normalizeName(item.name);
+      if (normalizedKey && !masterItemMap.has(normalizedKey)) {
+        masterItemMap.set(normalizedKey, item);
       }
     }
+    
+    // 4. 우리가 직접 관리하는 JSON 파일(분류 기준)을 읽어옵니다.
+    const itemsData = JSON.parse(fs.readFileSync(itemsDataPath, 'utf8'));
+    const categorizedItems = {};
+    
+    // 5. JSON 파일의 카테고리("일반 아이템", "상징 아이템" 등)를 순회합니다.
+    for (const category in itemsData) {
+      if (Object.hasOwnProperty.call(itemsData, category)) {
+        categorizedItems[category] = [];
+        
+        // 6. 각 카테고리에 속한 아이템 목록을 순회합니다.
+        for (const itemFromJson of itemsData[category]) {
+          // 7. JSON 파일의 한국어 이름도 동일하게 정규화하여 Key로 사용합니다.
+          const normalizedKeyFromJson = normalizeName(itemFromJson.korean_name);
+          
+          // 8. 정규화된 Key로 마스터 Map에서 최신 아이템 정보를 찾습니다.
+          const liveItemData = masterItemMap.get(normalizedKeyFromJson);
+          
+          if (liveItemData) {
+            // 매칭에 성공하면 최종 목록에 추가합니다.
+            categorizedItems[category].push(liveItemData);
+          } else {
+            console.warn(`[매칭 실패] JSON 아이템 '${itemFromJson.korean_name}'을(를) 마스터 데이터베이스에서 찾을 수 없습니다.`);
+          }
+        }
+      }
+    }
+    
+    res.json(categorizedItems);
 
-    // 이 라우터가 무엇을 반환해야 하는지에 따라 응답을 구성합니다.
-    // 기존 로직과 동일하게, 로드된 모든 아이템의 개수를 반환한다고 가정합니다.
-    res.json({
-      status: 'success',
-      message: 'TFT static data loaded and processed successfully for / route.',
-      totalItems: allItemsFlattened.length,
-      // 필요한 다른 데이터 반환
-    });
+  } catch (error) {
+    console.error("[items-by-category] 에러 발생:", error);
+    next(error);
+  }
+});
 
+
+// --- 다른 페이지에서 사용하는 API (변경 없음) ---
+router.get('/tft-meta', async (req, res, next) => {
+  try {
+    const tft = await getTFTData();
+    if (!tft || !tft.traitMap?.size || !tft.champions?.length || !tft.items?.completed?.length || !tft.krNameMap) {
+      return res.status(503).json({ error: 'TFT static 데이터가 완전하지 않습니다. 서버 로그를 확인해주세요.' });
+    }
+    res.json(tft);
   } catch (err) {
-    console.error('--- [staticData.js / 에러 핸들러] ---');
     next(err);
   }
 });
 
-// 💡 추가: 새로운 /tft-meta 엔드포인트 구현 (체크리스트 #2)
-router.get('/tft-meta', async (req, res, next) => {
-  try {
-    const tft = await getTFTData();
-
-    // tftData가 제대로 로드되었는지 확인하는 로직 (Match.js, Summoner.js와 유사)
-    // tft.items는 이제 객체이므로, 최소한 completed 아이템이 있는지 등으로 확인
-    if (!tft || !tft.traitMap?.size || !tft.champions?.length || !tft.items?.completed?.length || !tft.krNameMap) {
-      console.error('TFT static 데이터 로드 실패 또는 불완전 (routes/staticData.js - /tft-meta):', tft);
-      // tftData가 null이거나 불완전하면 503 Service Unavailable 반환
-      return res.status(503).json({ error: 'TFT static 데이터가 완전하지 않습니다. 서버 로그를 확인해주세요.' });
-    }
-
-    // getTFTData()에서 반환된 전체 tftData 객체를 JSON으로 전달
-    res.json(tft);
-
-  } catch (err) {
-    console.error('--- [routes/staticData.js /tft-meta 에러 핸들러] ---');
-    next(err); // 에러를 Express 에러 핸들링 미들웨어로 전달
-  }
-});
-
-// 이 라우터를 다른 파일에서 사용할 수 있도록 export
 export default router;
