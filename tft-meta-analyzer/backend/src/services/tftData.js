@@ -214,7 +214,7 @@ const getTFTData = async () => {
             !item.icon ||
             iconPath.includes('_placeholder') || iconPath.includes('_debug') || iconPath.includes('_test') ||
             apiName.includes('_debug_') || apiName.includes('_test_') || apiName.includes('_placeholder_') ||
-            apiName.includes('trainingdummy') || apiName.includes('unstableconcoction') ||
+            apiName.includes('trainingdummy') ||
             (apiName.includes('_set') && !apiName.includes('_set' + currentSetKey + '_') && !item.composition?.length && item.type !== 'Augment' && !item.isUnique && !(item.associatedTraits && item.associatedTraits.length > 0))
         ) {
             return;

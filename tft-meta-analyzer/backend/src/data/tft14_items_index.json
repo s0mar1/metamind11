@@ -55,7 +55,6 @@
     { "api_name": "TFT_Item_AnimaSquadEmblem", "korean_name": "동물특공대 상징", "icon_path": "https://raw.communitydragon.org/latest/game/assets/maps/particles/tft/item_icons/traits/spatula/set14/tft14_trait_animasquad.png" },
     { "api_name": "TFT_Item_SyndicateEmblem", "korean_name": "범죄 조직 상징", "icon_path": "https://raw.communitydragon.org/latest/game/assets/maps/particles/tft/item_icons/traits/spatula/set14/tft14_trait_syndicate.png" },
     { "api_name": "TFT_Item_MarksmanEmblem", "korean_name": "사격수 상징", "icon_path": "https://raw.communitydragon.org/latest/game/assets/maps/particles/tft/item_icons/traits/spatula/set14/tft14_trait_marksman.png" },
-    { "api_name": "TFT_Item_CypherEmblem", "korean_name": "사이퍼 상징", "icon_path": "https://raw.communitydragon.org/latest/game/assets/maps/particles/tft/item_icons/traits/spatula/set14/tft14_trait_cypher.png" },
     { "api_name": "TFT_Item_VanguardEmblem", "korean_name": "선봉대 상징", "icon_path": "https://raw.communitydragon.org/latest/game/assets/maps/particles/tft/item_icons/traits/spatula/set14/tft14_trait_vanguard.png" },
     { "api_name": "TFT_Item_RapidfireEmblem", "korean_name": "속사포 상징", "icon_path": "https://raw.communitydragon.org/latest/game/assets/maps/particles/tft/item_icons/traits/spatula/set14/tft14_trait_rapidfire.png" },
     { "api_name": "TFT_Item_DivinicorpEmblem", "korean_name": "신성기업 상징", "icon_path": "https://raw.communitydragon.org/latest/game/assets/maps/particles/tft/item_icons/traits/spatula/set14/tft14_trait_divinicorp.png" },
