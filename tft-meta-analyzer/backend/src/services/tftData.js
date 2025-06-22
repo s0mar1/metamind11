@@ -1,5 +1,3 @@
-// backend/src/services/tftData.js
-
 import axios from 'axios';
 
 let tftData = null;
@@ -8,57 +6,73 @@ const EN_URL = 'https://raw.communitydragon.org/latest/cdragon/tft/en_us.json';
 const KR_URL = 'https://raw.communitydragon.org/latest/cdragon/tft/ko_kr.json';
 
 const CDN_URL_PLUGINS_BASE = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/';
-const CDN_URL_GAME_BASE = 'https://raw.communitydragon.org/latest/game/';
+const CDN_URL_GAME_BASE    = 'https://raw.communitydragon.org/latest/game/';
 
 export const IDX2KEY = ['inactive', 'bronze', 'silver', 'gold', 'prismatic'];
-export const STYLE_ORDER = { inactive: 0, bronze: 1, silver: 2, gold: 3, prismatic: 4, chromatic: 5 };
-
+export const STYLE_ORDER = { inactive:0, bronze:1, silver:2, gold:3, prismatic:4, chromatic:5 };
 export const PALETTE = {
-  bronze   : '#B06A49',
-  silver   : '#D0D6D9',
-  gold     : '#E6C68C',
-  prismatic: '#FFFFFF',
-  unique   : '#FFA773',
-  inactive : '#6C757D',
+  bronze:'#B06A49', silver:'#D0D6D9', gold:'#E6C68C',
+  prismatic:'#FFFFFF', unique:'#FFA773', inactive:'#6C757D',
 };
 
+/*──────────────────── 아이콘 경로 변환 ────────────────────*/
 const toPNG = (path) => {
   if (!path) return null;
   let lowerPath = path.toLowerCase();
 
+  /* (1) particles/tft/item_icons  전용 — 세트 4→14 엠블럼 + .tex→.png  */
+  if (lowerPath.includes('assets/maps/particles/tft/item_icons/')) {
+
+    /* 1-a  Set4 Vanguard Emblem → Set14 경로 교정 */
+    if (lowerPath.includes('/spatula/set4/') &&
+        lowerPath.includes('_emblem_vanguard')) {
+      lowerPath = lowerPath
+        .replace('/spatula/set4/', '/spatula/set14/')
+        .replace('tft_sr4_5_emblem_vanguard_128', 'tft14_emblem_vanguard.tft_set14');
+    }
+
+    /* 1-b  .tex / .dds → .png */
+    lowerPath = lowerPath.replace(/\.(tex|dds)$/, '.png');
+
+    const processed = lowerPath.substring(lowerPath.indexOf('assets/'));
+    return `${CDN_URL_GAME_BASE}${processed}`;
+  }
+
+  /* (2) .tex / .dds → .png  (기타 경로) */
   if (lowerPath.endsWith('.tex') || lowerPath.endsWith('.dds')) {
     lowerPath = lowerPath.replace(/\.(tex|dds)$/, '.png');
   }
 
-  const lastDotIndex = lowerPath.lastIndexOf('.');
-  const lastSlashIndex = lowerPath.lastIndexOf('/');
-  if (lastDotIndex === -1 || lastDotIndex < lastSlashIndex) {
-      if (!lowerPath.endsWith('.png') && !lowerPath.endsWith('.jpg') && !lowerPath.endsWith('.jpeg') && !lowerPath.endsWith('.gif')) {
-          lowerPath = `${lowerPath}.png`;
-      }
+  /* (3) 컴포넌트 standard 폴더 */
+  if (lowerPath.includes('assets/maps/tft/item_icons/standard/')) {
+    const processed = lowerPath.substring(lowerPath.indexOf('assets/maps/tft/item_icons/standard/'));
+    return `${CDN_URL_GAME_BASE}${processed}`;
   }
 
+  /* (4) 일반 icons 폴더 */
   if (lowerPath.includes('assets/maps/tft/icons/')) {
-    const processedPath = lowerPath.substring(lowerPath.indexOf('assets/maps/tft/icons/'));
-    return `${CDN_URL_GAME_BASE}${processedPath}`;
+    const processed = lowerPath.substring(lowerPath.indexOf('assets/maps/tft/icons/'));
+    return `${CDN_URL_GAME_BASE}${processed}`;
   }
-  else if (lowerPath.startsWith('/lol-game-data/assets/')) {
-    const processedPath = lowerPath.substring('/lol-game-data/assets/'.length);
-    return `${CDN_URL_PLUGINS_BASE}assets/${processedPath}`;
-  } else if (lowerPath.startsWith('assets/')) {
-    const processedPath = lowerPath.substring('assets/'.length);
-    return `${CDN_URL_PLUGINS_BASE}assets/${processedPath}`;
+
+  /* (5) plugins 경로 */
+  if (lowerPath.startsWith('/lol-game-data/assets/')) {
+    const processed = lowerPath.substring('/lol-game-data/assets/'.length);
+    return `${CDN_URL_PLUGINS_BASE}assets/${processed}`;
   }
-  else if (lowerPath.startsWith('characters/') || lowerPath.startsWith('v1/champion-icons/')) {
+  if (lowerPath.startsWith('assets/')) {
+    const processed = lowerPath.substring('assets/'.length);
+    return `${CDN_URL_PLUGINS_BASE}assets/${processed}`;
+  }
+  if (lowerPath.startsWith('characters/') || lowerPath.startsWith('v1/champion-icons/')) {
     return `${CDN_URL_PLUGINS_BASE}${lowerPath}`;
   }
-  else if (lowerPath.startsWith('maps/')) {
+  if (lowerPath.startsWith('maps/')) {
     return `${CDN_URL_GAME_BASE}assets/${lowerPath}`;
   }
-  else {
-    console.warn(`WARN_TOPNG: Unrecognized path pattern for: ${path}. Attempting default plugins/assets/ base.`);
-    return `${CDN_URL_PLUGINS_BASE}assets/${lowerPath}`;
-  }
+
+  console.warn(`WARN_TOPNG: Unrecognized path pattern for: ${path}. Trying default plugins/assets/ base.`);
+  return `${CDN_URL_PLUGINS_BASE}assets/${lowerPath}`;
 };
 
 export const getTraitStyleInfo = (traitApiName, currentUnitCount, tftStaticData) => {

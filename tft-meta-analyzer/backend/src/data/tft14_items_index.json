@@ -1,8 +1,8 @@
 {
   "일반 아이템": [
-    { "api_name": "TFT_Item_BFSword", "korean_name": "B.F. 대검", "icon_path": "https://raw.communitydragon.org/latest/game/assets/maps/particles/tft/item_icons/standard/bf_sword.png" },
+    { "api_name": "TFTTutorial_Item_BFSword", "korean_name": "B.F. 대검", "icon_path": "https://raw.communitydragon.org/latest/game/assets/maps/particles/tft/item_icons/standard/bf_sword.png" },
     { "api_name": "TFT_Item_RecurveBow", "korean_name": "곡궁", "icon_path": "https://raw.communitydragon.org/latest/game/assets/maps/particles/tft/item_icons/standard/recurve_bow.png" },
-    { "api_name": "TFT_Item_ChainVest", "korean_name": "쇠사슬 조끼", "icon_path": "https://raw.communitydragon.org/latest/game/assets/maps/particles/tft/item_icons/standard/chain_vest.png" },
+    { "api_name": "TFTTutorial_Item_ChainVest", "korean_name": "쇠사슬 조끼", "icon_path": "https://raw.communitydragon.org/latest/game/assets/maps/particles/tft/item_icons/standard/chain_vest.png" },
     { "api_name": "TFT_Item_NegatronCloak", "korean_name": "음전자 망토", "icon_path": "https://raw.communitydragon.org/latest/game/assets/maps/particles/tft/item_icons/standard/negatron_cloak.png" },
     { "api_name": "TFT_Item_NeedlesslyLargeRod", "korean_name": "쓸데없이 큰 지팡이", "icon_path": "https://raw.communitydragon.org/latest/game/assets/maps/particles/tft/item_icons/standard/needlessly_large_rod.png" },
     { "api_name": "TFT_Item_TearOfTheGoddess", "korean_name": "여신의 눈물", "icon_path": "https://raw.communitydragon.org/latest/game/assets/maps/particles/tft/item_icons/standard/tear_of_the_goddess.png" },
