@@ -47,9 +47,11 @@ export default function ItemPanel() {
     return Object.entries(itemsByCategory)
       .filter(([, list]) => list?.length) // 빈 카테고리 제거
       .map(([id, list]) => {
-        let label = id;
-        LABEL_TRIM.forEach(suffix => {
-          if (label.endsWith(suffix)) label = label.slice(0, -suffix.length).trim();
+        // "(숫자)" 제거
+        let label = id.replace(/\s*\(\d+\)\s*$/, '');
+        // " 아이템" 접미사 제거
+        LABEL_TRIM.forEach(s => {
+          if (label.endsWith(s)) label = label.slice(0, -s.length).trim();
         });
         return { id, label, items: list };
       });
@@ -60,7 +62,6 @@ export default function ItemPanel() {
     if (!active && tabs.length) setActive(tabs[0].id);
   }, [tabs, active]);
 
-  /* --------------- 화면 --------------- */
   if (loading) return <p className="text-gray-300">아이템 로딩 중…</p>;
   if (error)   return <p className="text-red-400">로드 오류: {error}</p>;
   if (!tabs.length) return <p className="text-gray-400">표시할 아이템이 없습니다.</p>;
@@ -75,13 +76,14 @@ export default function ItemPanel() {
           <button
             key={t.id}
             onClick={() => setActive(t.id)}
+            title={`${t.label} (${t.items.length})`}
             className={`px-3 py-1 text-sm whitespace-nowrap ${
               active === t.id
                 ? 'text-blue-400 border-b-2 border-blue-400'
                 : 'text-gray-400 hover:text-gray-200'
             }`}
           >
-            {t.label} ({t.items.length})
+            {t.label}
           </button>
         ))}
       </div>
