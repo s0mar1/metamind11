@@ -1,5 +1,4 @@
-// frontend/src/context/TFTDataContext.jsx
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import axios from 'axios';
 
 const TFTDataContext = createContext();
@@ -7,10 +6,7 @@ const TFTDataContext = createContext();
 export const useTFTData = () => useContext(TFTDataContext);
 
 export const TFTDataProvider = ({ children }) => {
-  // 💡 1. 덱 빌더용으로 분류된 아이템을 저장할 새로운 상태 추가
   const [itemsByCategory, setItemsByCategory] = useState({});
-
-  // 기존 tftData 상태 (다른 페이지에서 사용하므로 그대로 유지합니다)
   const [tftData, setTftData] = useState({
     champions: [],
     items: { basic: [], completed: [], ornn: [], radiant: [], emblem: [], support: [], robot: [], unknown: [] },
@@ -20,6 +16,11 @@ export const TFTDataProvider = ({ children }) => {
     krNameMap: new Map(),
     currentSet: '',
   });
+
+  const allItems = useMemo(() => {
+    if (!itemsByCategory) return [];
+    return Object.values(itemsByCategory).flat();
+  }, [itemsByCategory]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -33,56 +34,83 @@ export const TFTDataProvider = ({ children }) => {
     const fetchData = async () => {
       setLoading(true);
       setError(null);
-
       try {
-        // 💡 2. Promise.all을 사용해 두 API를 병렬로 호출하여 성능을 최적화합니다.
         const [tftMetaResponse, itemsByCategoryResponse] = await Promise.all([
-          axios.get('/api/static-data/tft-meta'), // 기존 데이터 (전적 페이지 등에서 사용)
-          axios.get('/api/static-data/items-by-category') // 새로 추가된 분류된 아이템 데이터 (덱 빌더에서 사용)
+          axios.get('/api/static-data/tft-meta'),
+          axios.get('/api/static-data/items-by-category')
         ]);
 
-        if (tftMetaResponse.status !== 200) {
-          throw new Error(tftMetaResponse.data.error || `HTTP error! status: ${tftMetaResponse.status}`);
-        }
-        if (itemsByCategoryResponse.status !== 200) {
-          throw new Error(itemsByCategoryResponse.data.error || `HTTP error! status: ${itemsByCategoryResponse.status}`);
-        }
-        
-        // 각 API 응답 결과를 상태에 저장합니다.
-        setTftData(tftMetaResponse.data);
+        // 추가 디버깅 로그
+        console.log("TFTDataContext: tftMetaResponse:", tftMetaResponse);
+        console.log("TFTDataContext: tftMetaResponse.data:", tftMetaResponse.data);
+        console.log("TFTDataContext: itemsByCategoryResponse.data:", itemsByCategoryResponse.data);
+
+        const receivedTftData = tftMetaResponse.data;
+        console.log("TFTDataContext: Fetched TFT Meta Data (receivedTftData):", receivedTftData);
+        console.log("TFTDataContext: receivedTftData.traitMap (before extraction):", receivedTftData.traitMap);
+
+        // 💡 핵심 수정: 백엔드에서 [key, value] 배열로 받은 traitMap과 krNameMap을 다시 Map 객체로 재구성합니다.
+        const rehydratedTraitMap = new Map(receivedTftData.traitMap);
+        const rehydratedKrNameMap = new Map(receivedTftData.krNameMap);
+
+        // traitMap에서 traits 배열을 추출 (Map으로 변환하기 전에)
+        const extractedTraits = Array.from(rehydratedTraitMap.values()); // Map의 값들을 배열로 추출
+
+        setTftData({
+          ...receivedTftData,
+          traits: extractedTraits, // 추출된 traits 배열을 추가
+          traitMap: rehydratedTraitMap, // 재구성된 Map 객체 할당
+          krNameMap: rehydratedKrNameMap, // 재구성된 Map 객체 할당
+        });
         setItemsByCategory(itemsByCategoryResponse.data);
+
+        // 안전하게 길이 로그 출력
+        console.log(
+          "TFTDataContext: Data set. Champions:",
+          receivedTftData.champions ? receivedTftData.champions.length : "undefined",
+          "Traits:",
+          extractedTraits.length // 추출된 traits의 길이를 로그
+        );
 
       } catch (error) {
         console.error("TFT 데이터 로딩 실패:", error);
         setError(error.response?.data?.error || error.message || "데이터 로딩 중 알 수 없는 오류 발생");
       } finally {
         setLoading(false);
+        console.log("TFTDataContext: Loading set to false.");
       }
     };
     fetchData();
   }, []);
 
-  const showTooltip = (championData, event) => {
+  const showTooltip = useCallback((data, event) => {
+    const tooltipWidth = 320; // 툴팁의 가로 너비 (w-80)
+    const x = event.clientX + 15 + tooltipWidth > window.innerWidth
+      ? event.clientX - tooltipWidth - 15
+      : event.clientX + 15;
+    const y = event.clientY + 15;
+
     setTooltip({
       visible: true,
-      data: championData,
-      position: { x: event.clientX + 15, y: event.clientY + 15 }
+      data: data,
+      position: { x, y }
     });
-  };
+  }, []);
 
-  const hideTooltip = () => {
+  const hideTooltip = useCallback(() => {
     setTooltip(prev => ({ ...prev, visible: false }));
-  };
+  }, []);
 
-  const value = {
-    ...tftData,        // 기존 tftData도 그대로 제공하여 다른 페이지에 영향을 주지 않음
-    itemsByCategory,   // 💡 3. 새로 추가된 아이템 데이터를 context 값으로 전달
+  const value = useMemo(() => ({
+    ...tftData,
+    itemsByCategory,
+    allItems,
     loading,
     error,
     tooltip,
     showTooltip,
     hideTooltip,
-  };
+  }), [tftData, itemsByCategory, allItems, loading, error, tooltip, showTooltip, hideTooltip]);
 
   return (
     <TFTDataContext.Provider value={value}>

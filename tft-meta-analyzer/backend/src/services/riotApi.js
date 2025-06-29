@@ -3,6 +3,26 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const getPlatformRegion = (regionalRegion) => {
+  switch (regionalRegion.toLowerCase()) {
+    case 'kr':
+    case 'jp':
+      return 'asia';
+    case 'na':
+    case 'br':
+    case 'la1':
+    case 'la2':
+      return 'americas';
+    case 'euw':
+    case 'eune':
+    case 'tr':
+    case 'ru':
+      return 'europe';
+    default:
+      return 'asia'; // Default or throw error
+  }
+};
+
 const RIOT_API_KEY = process.env.RIOT_API_KEY;
 
 if (!RIOT_API_KEY) {
@@ -12,25 +32,29 @@ if (!RIOT_API_KEY) {
 const api = axios.create({
   headers: {
     'X-Riot-Token': RIOT_API_KEY,
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
   },
 });
 
-export const getAccountByRiotId = async (gameName, tagLine) => {
-  const apiRegion = 'asia';
-  const url = `https://${apiRegion}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${gameName}/${tagLine}`;
+export const getAccountByRiotId = async (gameName, tagLine, region = 'kr') => {
+  const apiRegion = getPlatformRegion(region);
+  const url = `https://${apiRegion}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`;
+  console.log(`[Riot API Request] getAccountByRiotId URL: ${url}, Headers:`, api.defaults.headers.common);
   const response = await api.get(url);
   return response.data;
 };
 
 // 이 함수 전체를 새로운 내용으로 교체해주세요.
-export const getMatchIdsByPUUID = async (puuid, count = 10) => {
-  const apiRegion = 'asia';
+export const getMatchIdsByPUUID = async (puuid, count = 10, region) => {
+  const apiRegion = getPlatformRegion(region);
   const queueId = 1100; // TFT 랭크 게임의 고유 ID
 
   // ⬇️⬇️⬇️ 실시간 유저 검색에서는 startTime 필터를 제거합니다. ⬇️⬇️⬇️
   const url = `https://${apiRegion}.api.riotgames.com/tft/match/v1/matches/by-puuid/${puuid}/ids?start=0&count=${count}&queue=${queueId}`;
   
   try {
+    console.log(`[Riot API Request] getMatchIdsByPUUID URL: ${url}, Headers:`, api.defaults.headers.common);
     const response = await api.get(url);
     return response.data;
   } catch (error) {
@@ -42,50 +66,62 @@ export const getMatchIdsByPUUID = async (puuid, count = 10) => {
   }
 };
 
-export const getMatchDetail = async (matchId) => {
-  const apiRegion = 'asia';
+export const getMatchDetail = async (matchId, region) => {
+  const apiRegion = getPlatformRegion(region);
   const url = `https://${apiRegion}.api.riotgames.com/tft/match/v1/matches/${matchId}`;
+  console.log(`[Riot API Request] getMatchDetail URL: ${url}, Headers:`, api.defaults.headers.common);
   const response = await api.get(url);
   return response.data;
 };
 
-export const getChallengerLeague = async () => {
-  const apiRegion = 'kr';
+export const getChallengerLeague = async (region = 'kr') => {
+  const apiRegion = region;
   const url = `https://${apiRegion}.api.riotgames.com/tft/league/v1/challenger`;
+  console.log(`[Riot API Request] getChallengerLeague URL: ${url}, Headers:`, api.defaults.headers.common);
   const response = await api.get(url);
   return response.data;
 };
 
-export const getSummonerBySummonerId = async (summonerId) => {
-  const apiRegion = 'kr';
-  const url = `https://${apiRegion}.api.riotgames.com/tft/summoner/v1/summoners/${summonerId}`;
-  const response = await api.get(url);
-  return response.data;
-};
 
-export const getAccountByPuuid = async (puuid) => {
-  const apiRegion = 'asia';
+
+export const getAccountByPuuid = async (puuid, region) => {
+  const apiRegion = getPlatformRegion(region);
   const url = `https://${apiRegion}.api.riotgames.com/riot/account/v1/accounts/by-puuid/${puuid}`;
+  console.log(`[Riot API Request] getAccountByPuuid URL: ${url}, Headers:`, api.defaults.headers.common);
   const response = await api.get(url);
   return response.data;
 };
 
-export const getSummonerByPuuid = async (puuid) => {
-  const apiRegion = 'kr';
+export const getSummonerByPuuid = async (puuid, region) => {
+  const apiRegion = region;
   const url = `https://${apiRegion}.api.riotgames.com/tft/summoner/v1/summoners/by-puuid/${puuid}`;
+  console.log(`[Riot API Request] getSummonerByPuuid URL: ${url}, Headers:`, api.defaults.headers.common);
   const response = await api.get(url);
+  console.log('DEBUG: getSummonerByPuuid response.data:', response.data);
   return response.data;
 };
 
-export const getLeagueEntriesBySummonerId = async (summonerId) => {
-  const apiRegion = 'kr';
-  const url = `https://${apiRegion}.api.riotgames.com/tft/league/v1/entries/by-summoner/${summonerId}`;
+export const getLeagueEntriesByPuuid = async (puuid, region) => {
+  const apiRegion = region;
+  const url = `https://${apiRegion}.api.riotgames.com/tft/league/v1/by-puuid/${puuid}`;
+  console.log(`[Riot API Request] getLeagueEntriesByPuuid URL: ${url}, Headers:`, api.defaults.headers.common);
   try {
     const response = await api.get(url);
+    // Riot API 응답이 배열 형태일 것으로 예상
+    if (!Array.isArray(response.data)) {
+      console.warn(`WARN: getLeagueEntriesByPuuid expected array, but received:`, response.data);
+      return null;
+    }
+    // TFT 랭크 게임 엔트리만 필터링
     return response.data.find(entry => entry.queueType === 'RANKED_TFT');
   } catch (error) {
-    if (error.response && error.response.status === 404) {
-      return null;
+    if (error.response) {
+      console.error(`[Riot API Error] getLeagueEntriesByPuuid Status: ${error.response.status}, Data:`, error.response.data);
+      if (error.response.status === 404) {
+        return null;
+      }
+    } else {
+      console.error(`[Riot API Error] getLeagueEntriesByPuuid Network Error:`, error.message);
     }
     throw error;
   }

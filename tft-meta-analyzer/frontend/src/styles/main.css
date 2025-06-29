@@ -109,5 +109,9 @@ body {
   text-shadow: none;
 }
 
-/* --- Unit.jsx (챔피언 유닛) 5코스트 스타일은 제거됨 --- */
-/* (이전 버전에서 이미 제거) */
+/* 화면 최하단에 160px 여백(=툴팁 높이 정도) 추가 */
+body::after{
+  content:"";
+  display:block;
+  height:320px;      /* 필요하면 크기 조정 */
+}

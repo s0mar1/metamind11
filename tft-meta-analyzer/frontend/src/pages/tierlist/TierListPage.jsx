@@ -1,6 +1,7 @@
 // frontend/src/pages/tierlist/TierListPage.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useTFTData } from '../../context/TFTDataContext'; // 💡 1. 툴팁 함수를 사용하기 위해 useTFTData를 가져옵니다.
 
 // --- 헬퍼 함수 ---
 const getTierColor = (tierRank) => {
@@ -15,20 +16,37 @@ const getCostBorderStyle = (cost) => {
 
 // --- 재사용 컴포넌트 ---
 const UnitWithItems = ({ unit, showItems, isMajorUnit }) => {
+  // 💡 2. Context에서 툴팁 함수와 전체 챔피언 목록 데이터를 가져옵니다.
+  const { showTooltip, hideTooltip, champions } = useTFTData();
+
   if (!unit || !unit.image_url) {
-    // 유닛 데이터가 없을 경우를 대비한 플레이스홀더
     return <div className="w-14 h-24" />;
   }
 
   const displayedItems = showItems ? (unit.recommendedItems || []).slice(0, 3) : [];
 
+  const handleMouseEnter = (event, unitData) => {
+    // 툴팁에 필요한 전체 챔피언 정보를 `champions` 목록에서 찾습니다.
+    const fullChampionData = champions.find(c => c.apiName === unitData.apiName);
+    if (fullChampionData) {
+      showTooltip(fullChampionData, event);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    hideTooltip();
+  };
+
   return (
-    <div className="relative flex flex-col items-center gap-1 w-14">
-      {/* 3성 뱃지 */}
+    // 💡 3. 마우스 이벤트를 감지할 div에 onMouseEnter와 onMouseLeave를 추가합니다.
+    <div 
+      className="relative flex flex-col items-center gap-1 w-14"
+      onMouseEnter={(e) => handleMouseEnter(e, unit)}
+      onMouseLeave={handleMouseLeave}
+    >
       {unit.tier === 3 && (
         <div className="absolute top-0 right-0 z-10 flex items-center justify-center w-5 h-5 bg-yellow-400 border border-yellow-600 rounded-full text-white font-bold text-xs">★</div>
       )}
-      {/* 캐리/서브캐리 별 등급 */}
       {isMajorUnit && unit.tier > 0 && (
         <div className="absolute top-10 w-full text-center text-yellow-400 font-bold text-lg" style={{ textShadow: '0 0 3px black' }}>
           {'★'.repeat(unit.tier)}
@@ -56,7 +74,6 @@ const DeckCard = ({ deck }) => {
   const top4Rate = deck.totalGames > 0 ? ((deck.top4Count / deck.totalGames) * 100).toFixed(1) : "0.0";
   const winRate = deck.totalGames > 0 ? ((deck.winCount / deck.totalGames) * 100).toFixed(1) : "0.0";
 
-  // 핵심 유닛 정렬: 캐리 -> 코스트 오름차순 -> 티어 내림차순
   const sortedCoreUnits = [...(deck.coreUnits || [])].sort((a, b) => {
     const isA_Carry = a.name === deck.carryChampionName;
     const isB_Carry = b.name === deck.carryChampionName;
@@ -66,7 +83,6 @@ const DeckCard = ({ deck }) => {
     return b.tier - a.tier;
   });
 
-  // 아이템/별 표시할 주요 유닛 선정 로직
   const majorUnitsToShow = new Set();
   if (deck.carryChampionName) {
       const carryUnit = sortedCoreUnits.find(u => u.name === deck.carryChampionName);
@@ -81,7 +97,6 @@ const DeckCard = ({ deck }) => {
   
   return (
     <div className="flex items-center gap-6 p-4 bg-white rounded-lg shadow-md border-l-4" style={{ borderLeftColor: tierColor }}>
-      {/* 1열: 티어, 덱 이름 */}
       <div className="flex items-center gap-4 flex-shrink-0 w-56">
         <div className="flex items-center justify-center w-10 h-10 rounded-md text-white text-2xl font-bold" style={{ backgroundColor: tierColor }}>
           {deck.tierRank}
@@ -91,7 +106,6 @@ const DeckCard = ({ deck }) => {
         </div>
       </div>
 
-      {/* 2열: 핵심 유닛 */}
       <div className="flex-grow flex items-start gap-1.5">
         {sortedCoreUnits.slice(0, 8).map((unit) => (
           <UnitWithItems
@@ -103,7 +117,6 @@ const DeckCard = ({ deck }) => {
         ))}
       </div>
 
-      {/* 3열: 통계 데이터 */}
       <div className="flex-shrink-0 grid grid-cols-4 gap-4 w-72 text-right">
         <div><p className="font-bold text-lg text-gray-800">{deck.averagePlacement.toFixed(2)}</p><p className="text-xs text-gray-500">평균 등수</p></div>
         <div><p className="font-bold text-lg text-blue-500">{top4Rate}%</p><p className="text-xs text-gray-500">Top 4</p></div>
@@ -111,7 +124,6 @@ const DeckCard = ({ deck }) => {
         <div><p className="font-bold text-lg text-gray-800">{deck.totalGames}</p><p className="text-xs text-gray-500">게임 수</p></div>
       </div>
       
-      {/* 4열: 상세보기 버튼 */}
       <div className="flex-shrink-0">
         <button className="p-2 text-gray-500 text-2xl hover:bg-gray-100 rounded-md">▼</button>
       </div>
@@ -129,7 +141,6 @@ function TierListPage() {
     const fetchTierData = async () => {
       try {
         setLoading(true);
-        // 🚨 API 주소 수정: /api/tierlist -> /api/deck-tiers
         const response = await axios.get('/api/deck-tiers');
         setTierData(response.data);
       } catch (err) { 

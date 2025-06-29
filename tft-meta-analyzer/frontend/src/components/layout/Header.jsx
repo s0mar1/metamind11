@@ -47,6 +47,7 @@ const Header = () => {
       <div className="border-t border-border-light">
           <nav className="max-w-7xl mx-auto px-6 flex items-center gap-8">
             <NavLink to="/tierlist" className={navLinkClass}>추천 메타</NavLink>
+            <NavLink to="/guides" className={navLinkClass}>덱공략</NavLink>
             <NavLink to="/ranking" className={navLinkClass}>랭킹</NavLink>
             <NavLink to="/deck-builder" className={navLinkClass}>덱 빌더</NavLink> {/* ⬅️ 새로 추가 */}
             <NavLink to="/ai-chat" className={navLinkClass}>AI 질문하기</NavLink>

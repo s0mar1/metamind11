@@ -189,25 +189,76 @@ const getTFTData = async () => {
         }
     });
 
-    const champions = enSetData.champions
-        .filter(champ => champ.cost > 0 && champ.traits.length > 0 && !champ.apiName.includes('Tutorial'))
-        .map(champ => {
+      const champions = enSetData.champions
+        .filter(champ => champ.cost > 0 && champ.traits?.length > 0 && !champ.apiName.includes('Tutorial'))
+        .map(enChamp => {
+            const krChamp = krSetData.champions.find(c => c.apiName === enChamp.apiName);
+            
+            // 영문 원본의 스킬 정보를 기준으로 삼습니다.
+            const baseAbility = enChamp.ability || enChamp.abilities?.[0];
+            let finalAbility = null;
+
+            if (baseAbility) {
+                // 1. 깊은 복사를 통해 원본(enChamp)이 오염되지 않도록 합니다.
+                finalAbility = JSON.parse(JSON.stringify(baseAbility));
+
+                // 2. 한글 데이터가 존재하면, 복사된 객체에 안전하게 덮어씁니다.
+                if (krChamp) {
+                    const krAbility = krChamp.ability || krChamp.abilities?.[0];
+                    if (krAbility) {
+                        finalAbility.name = krAbility.name || finalAbility.name; // 한글 스킬 이름
+                        finalAbility.desc = krAbility.desc || finalAbility.desc; // 한글 스킬 설명
+                    }
+                }
+            }
+            
             return {
-                ...champ,
-                name: krChampionNames.get(champ.apiName) || champ.name,
-                tileIcon: toPNG(champ.tileIcon) 
+                ...enChamp,
+                // 3. 새로 만든 finalAbility 객체를 할당합니다.
+                ability: finalAbility,
+                abilities: undefined, // 프론트엔드 혼동 방지를 위해 원본 배열 제거
+                name: krChampionNames.get(enChamp.apiName) || enChamp.name, // 사용자님 코드에 있던 krChampionNames 변수 사용
+                tileIcon: toPNG(enChamp.tileIcon),
+                traits: krChamp ? krChamp.traits : enChamp.traits, // 💡 핵심 수정: krChamp의 traits 사용, 없으면 enChamp 사용
             };
         });
-
+    console.log("DEBUG: Sample Champion Traits after processing in tftData.js:", champions[0]?.traits);
     const traitMap = new Map();
+    console.log("tftData.js: enSetData.traits before forEach:", enSetData.traits);
     enSetData.traits.forEach(trait => {
         const krName = krTraitNames.get(trait.apiName);
         if (krName) {
             trait.name = krName;
         }
         trait.icon = toPNG(trait.icon); 
-        traitMap.set(trait.apiName.toLowerCase(), trait);
+        const mapKey = trait.apiName.toLowerCase();
+
+        // 💡 핵심 수정: 계열/직업 목록을 기반으로 type 할당
+        const originsList = ['거리의 악마', '군주', '네트워크의 신', '니트로', '동물특공대', '바이러스', '사이버보스', '범죄 조직', '사이퍼', '신성기업', '엑소테크', '영혼 살해자', '폭발 봇', '황금황소'];
+        const classesList = ['기술광', '난동꾼', '다이나모', '사격수', '선봉대', '속사포', '요새', '증.폭.', '책략가', '처형자', '학살자'];
+
+        if (originsList.includes(trait.name)) {
+            trait.type = 'origin';
+        } else if (classesList.includes(trait.name)) {
+            trait.type = 'class';
+        } else {
+            // 알려진 목록에 없으면 기본값으로 'unknown' 또는 'origin' 설정
+            // 여기서는 일단 'unknown'으로 설정하여 분류되지 않은 특성을 파악하기 쉽게 함
+            trait.type = 'unknown'; 
+            console.warn(`WARN: Unknown trait type for: ${trait.name} (${trait.apiName}). Assigned 'unknown' type.`);
+        }
+
+        traitMap.set(mapKey, trait);
+        console.log("tftData.js: Added to traitMap - Key:", mapKey, "Value:", trait);
     });
+    console.log("tftData.js: traitMap size after population:", traitMap.size);
+
+    // traitMap을 일반 객체로 변환하여 JSON 직렬화에 대비
+    const plainTraitMap = {};
+    traitMap.forEach((value, key) => {
+        plainTraitMap[key] = value;
+    });
+    console.log("tftData.js: plainTraitMap after conversion:", plainTraitMap);
 
     // 💡 핵심 수정: processedAugments 변수 초기화 추가
     const basicItems = [];
@@ -287,7 +338,8 @@ const getTFTData = async () => {
       },
       augments: processedAugments, // 이제 processedAugments가 정의됨
       champions: champions,
-      traitMap: traitMap,
+      traits: Object.values(plainTraitMap), // plainTraitMap의 값들을 traits 배열로 할당
+      traitMap: traitMap, // traitMap은 Map 객체 그대로 유지
       currentSet: `Set${currentSetKey}`,
       krNameMap: new Map([
         ...Array.from(krChampionNames.entries()).map(([key, value]) => [key.toLowerCase(), value]),

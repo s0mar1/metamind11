@@ -1,6 +1,7 @@
 import React from 'react';
 import { useDrop, useDrag } from 'react-dnd';
 import { ItemTypes } from '../../constants';
+import { useTFTData } from '../../context/TFTDataContext'; // 💡 1. 툴팁 함수 사용을 위해 import
 
 // ─────────────────────────────────────────────────────────────
 //  HEX + BORDER  ★  clip‑path polygon helpers
@@ -27,6 +28,7 @@ export default function HexGrid({
   onUnitAction,
   onSelectUnit,
   onUnitRemove,
+  onItemDrop, // Add onItemDrop prop
   selectedKey,
 }) {
   const ROWS = 5;
@@ -68,6 +70,7 @@ export default function HexGrid({
             onUnitAction={onUnitAction}
             onSelectUnit={onSelectUnit}
             onUnitRemove={onUnitRemove}
+            onItemDrop={onItemDrop}
           />
         );
       })}
@@ -114,71 +117,95 @@ function PlacedUnit({
   onUnitAction,
   onSelectUnit,
   onUnitRemove,
+  onItemDrop, // Add onItemDrop prop
 }) {
+  const { showTooltip, hideTooltip } = useTFTData();
   const [{ isDragging }, drag] = useDrag({
     type: ItemTypes.PLACED_UNIT,
     item: { unit, fromKey: `${pos.y}-${pos.x}` },
     collect: (m) => ({ isDragging: m.isDragging() }),
   });
 
+  // Make PlacedUnit a drop target for items
+  const [{ isOver: isOverItem, canDrop: canDropItem }, dropItem] = useDrop({
+    accept: ItemTypes.ITEM,
+    drop: (item) => {
+      onItemDrop(pos, item.item); // Call onItemDrop with unit position and dropped item
+    },
+    collect: (monitor) => ({
+      isOver: monitor.isOver(),
+      canDrop: monitor.canDrop(),
+    }),
+  });
+
   const offsetX = pos.y % 2 ? CELL.w / 2 + SPACING / 2 : 0;
   const left = pos.x * (CELL.w + SPACING) + offsetX;
   const top = pos.y * ((CELL.h * 0.75) + SPACING);
 
-  const BORDER = 3; // 테두리 두께
+  const BORDER = 3;
   const cost = Number(unit.cost) || 1;
   const borderColor = COST_COLORS[cost];
 
   return (
-    // ───────── 바깥 레이어 : 테두리만 표현 ─────────
     <div
-      ref={drag}
-      className="absolute cursor-pointer"
+      ref={node => drag(dropItem(node))}
+      className={`absolute cursor-pointer ${isOverItem && canDropItem ? 'ring-4 ring-yellow-400' : ''}`}
       onClick={() => onSelectUnit(pos)}
       onContextMenu={(e) => {
         e.preventDefault();
         onUnitRemove(pos);
       }}
+      onMouseEnter={(e) => showTooltip(unit, e)}
+      onMouseLeave={hideTooltip}
       style={{
         left,
         top,
         width: CELL.w,
         height: CELL.h,
         opacity: isDragging ? 0.5 : 1,
-        clipPath: `polygon(${HEX_CLIP})`,
-        background: borderColor,
         zIndex: 10,
       }}
     >
-      {/* ───────── 안쪽 레이어 : 실제 이미지 클리핑 ───────── */}
+      {/* 챔피언 이미지 (잘림 효과 적용) */}
       <div
-        className="w-full h-full overflow-hidden"
+        className="w-full h-full"
         style={{
           clipPath: `polygon(${HEX_CLIP})`,
-          transform: `scale(${(CELL.w - BORDER * 2) / CELL.w})`,
-          transformOrigin: 'center',
+          background: borderColor,
         }}
       >
-        <img
-          src={unit.tileIcon}
-          alt={unit.name}
-          className="w-full h-full object-cover pointer-events-none"
-        />
+        <div
+          className="w-full h-full"
+          style={{
+            clipPath: `polygon(${HEX_CLIP})`,
+            transform: `scale(${(CELL.w - BORDER * 2) / CELL.w})`,
+            transformOrigin: 'center',
+          }}
+        >
+          <img
+            src={unit.tileIcon}
+            alt={unit.name}
+            className="w-full h-full object-cover pointer-events-none"
+          />
+        </div>
       </div>
 
-      {/* 별 표시 */}
+      {/* 별 아이콘 (잘림 효과 없음) */}
       {unit.star > 0 && (
         <div
-          className="absolute top-0 left-1/2 -translate-x-1/2 flex gap-px text-yellow-300 text-base font-bold z-20"
-          style={{ textShadow: '0 0 2px black' }}
+          className="absolute top-0 left-1/2 -translate-x-1/2 flex gap-px text-yellow-300 text-base font-bold"
+          style={{ textShadow: '0 0 2px black', zIndex: 20 }}
         >
           {'★'.repeat(unit.star)}
         </div>
       )}
 
-      {/* 아이템 */}
+      {/* 아이템 아이콘 (잘림 효과 없음) */}
       {unit.items && unit.items.length > 0 && (
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 flex justify-center gap-px z-20">
+        <div 
+          className="absolute bottom-0 left-1/2 -translate-x-1/2 flex justify-center gap-px"
+          style={{ zIndex: 20 }}
+        >
           {unit.items.slice(0, 3).map(
             (item, idx) =>
               item.icon && (

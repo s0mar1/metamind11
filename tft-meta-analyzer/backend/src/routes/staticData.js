@@ -80,7 +80,13 @@ router.get('/tft-meta', async (req, res, next) => {
     if (!tft || !tft.traitMap?.size || !tft.champions?.length || !tft.items?.completed?.length || !tft.krNameMap) {
       return res.status(503).json({ error: 'TFT static 데이터가 완전하지 않습니다. 서버 로그를 확인해주세요.' });
     }
-    res.json(tft);
+    // 💡 핵심 수정: traitMap을 [key, value] 배열로 변환하여 전송
+    const responseTft = {
+      ...tft,
+      traitMap: Array.from(tft.traitMap.entries()),
+      krNameMap: Array.from(tft.krNameMap.entries()), // krNameMap도 Map이므로 함께 변환
+    };
+    res.json(responseTft);
   } catch (err) {
     next(err);
   }

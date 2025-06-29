@@ -9,14 +9,13 @@ import HexGrid from './HexGrid';
 import ItemPanel from './ItemPanel';
 import DetailPanel from './DetailPanel';
 
-import { encodeDeck, decodeDeck } from '../../utils/deckCode';
-import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 export default function DeckBuilderPage() {
   const { champions, items, augments, traits, loading } = useTFTData();
   const [placedUnits, setPlacedUnits] = useState({});
   const [selectedKey, setSelectedKey] = useState(null);
-  const [deckCode, setDeckCode] = useState('');
+  const navigate = useNavigate();
 
   const handleUnitAction = useCallback((draggedItem, targetPos) => {
     const toKey = `${targetPos.y}-${targetPos.x}`;
@@ -99,36 +98,9 @@ export default function DeckBuilderPage() {
     });
   }, []);
 
-  const handleLoadDeck = useCallback(() => {
-    try {
-      const decoded = decodeDeck(deckCode, champions, items);
-      setPlacedUnits(decoded);
-      setSelectedKey(null);
-      alert('덱을 성공적으로 불러왔습니다!');
-    } catch (e) {
-      alert('잘못된 덱 코드입니다. 다시 확인해주세요.');
-      console.error('Deck load error:', e);
-    }
-  }, [deckCode, champions, items]);
-
-  const handleSaveDeck = useCallback(async () => {
-    if (!Object.keys(placedUnits).length) {
-      alert('저장할 덱이 없습니다.');
-      return;
-    }
-    const deckName = prompt('덱 이름을 입력해주세요:');
-    if (!deckName) return;
-    try {
-      const { data } = await axios.post('/api/deck-builder', {
-        deckName,
-        placements: Object.values(placedUnits).map(u => ({ unitApiName: u.apiName, x: u.pos.x, y: u.pos.y })),
-      });
-      alert(`덱 "${data.deckName}"이 성공적으로 저장되었습니다!`);
-    } catch (e) {
-      console.error('Deck save error:', e.response?.data?.error || e.message);
-      alert('덱 저장에 실패했습니다. 다시 시도해주세요.');
-    }
-  }, [placedUnits]);
+  const handleCreateGuide = useCallback(() => {
+    navigate('/guides/new', { state: { initialDeck: placedUnits } });
+  }, [navigate, placedUnits]);
 
   const selectedUnit = selectedKey ? placedUnits[selectedKey] : null;
 
@@ -137,15 +109,14 @@ export default function DeckBuilderPage() {
       <div className="flex flex-col min-h-[calc(100vh-theme(space.16))] bg-background-base p-4 lg:p-6 relative z-0">
         {/* 상단 컨트롤 패널 */}
         <div className="bg-gray-800 p-4 rounded-lg text-white mb-4 shadow-md z-10">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold">덱 빌더</h2>
-            <select className="bg-gray-700 text-white p-2 rounded"><option value="set14">시즌 14</option></select>
-          </div>
-          <div className="flex gap-2 items-center mb-4">
-            <input type="text" className="flex-grow p-2 rounded text-black bg-gray-200" placeholder="덱 코드를 여기에 붙여넣으세요..." value={deckCode} onChange={e => setDeckCode(e.target.value)} />
-            <button onClick={handleLoadDeck} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm font-semibold">불러오기</button>
-            <button onClick={() => { const code = encodeDeck(placedUnits); navigator.clipboard.writeText(code); setDeckCode(code); alert('덱 코드가 클립보드에 복사되었습니다!'); }} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm font-semibold">복사</button>
-            <button onClick={handleSaveDeck} className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded text-sm font-semibold">저장</button>
+            <button
+              onClick={handleCreateGuide}
+              className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded text-sm font-semibold"
+            >
+              공략 작성
+            </button>
           </div>
         </div>
 
@@ -154,7 +125,7 @@ export default function DeckBuilderPage() {
           {/* 왼쪽 시너지 */}
           <aside className="bg-gray-800 p-4 rounded-lg shadow-md h-full z-10"><SynergyPanel placedUnits={placedUnits} /></aside>
           {/* 보드 */}
-          <main className="flex-grow flex justify-center items-center bg-gray-900 rounded-lg p-4 shadow-md z-10"><HexGrid placedUnits={placedUnits} onUnitAction={handleUnitAction} onSelectUnit={handleSelectUnit} onUnitRemove={handleUnitRemove} selectedKey={selectedKey} /></main>
+          <main className="flex-grow flex justify-center items-center bg-gray-900 rounded-lg p-4 shadow-md z-10"><HexGrid placedUnits={placedUnits} onUnitAction={handleUnitAction} onSelectUnit={handleSelectUnit} onUnitRemove={handleUnitRemove} onItemDrop={handleEquip} selectedKey={selectedKey} /></main>
           {/* 상세 */}
           <aside className="bg-gray-800 p-4 rounded-lg shadow-md h-full z-10"><DetailPanel selectedUnit={selectedUnit} onUnitRemove={handleUnitRemove} onChangeStar={handleChangeStar} onEquip={handleEquip} onUnequip={handleUnequip} /></aside>
         </div>

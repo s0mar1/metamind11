@@ -35,7 +35,7 @@ function DraggableItem({ item }) {
 }
 
 /* ---------------- 아이템 패널 ---------------- */
-export default function ItemPanel() {
+export default function ItemPanel({ mini = false }) {
   const { itemsByCategory, loading, error } = useTFTData();
 
   /* “ ~아이템” 같은 불필요한 꼬리를 없애기 위한 문자열 목록 */
@@ -66,6 +66,31 @@ export default function ItemPanel() {
   if (error)   return <p className="text-red-400">로드 오류: {error}</p>;
   if (!tabs.length) return <p className="text-gray-400">표시할 아이템이 없습니다.</p>;
 
+  if (mini) {
+    return (
+      <div className="h-full overflow-y-auto">
+        {tabs.map(t => (
+          <div key={t.id} className={active === t.id ? 'block' : 'hidden'}>
+            <div
+              className="grid gap-1"
+              style={{ gridTemplateColumns: 'repeat(auto-fill, 24px)' }}
+            >
+              {t.items.map(it => (
+                <div 
+                  key={it.apiName}
+                  className="w-6 h-6 rounded-sm overflow-hidden shadow-md"
+                  title={it.name}
+                >
+                  <img src={it.icon || '/item_fallback.png'} alt={it.name} className="w-full h-full object-cover" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="bg-gray-800 p-4 rounded-lg text-white flex flex-col h-full">
       <h2 className="text-xl font-bold mb-3">아이템</h2>
@@ -75,6 +100,7 @@ export default function ItemPanel() {
         {tabs.map(t => (
           <button
             key={t.id}
+            type="button"
             onClick={() => setActive(t.id)}
             title={`${t.label} (${t.items.length})`}
             className={`px-3 py-1 text-sm whitespace-nowrap ${

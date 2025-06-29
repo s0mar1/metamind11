@@ -4,9 +4,9 @@ import express from 'express';
 import {
   getAccountByRiotId,
   getSummonerByPuuid,
-  getLeagueEntriesBySummonerId,
   getMatchIdsByPUUID,
   getMatchDetail,
+  getLeagueEntriesByPuuid,
 } from '../services/riotApi.js';
 import getTFTData, { getTraitStyleInfo } from '../services/tftData.js';
 import NodeCache  from 'node-cache';
@@ -34,17 +34,32 @@ router.get('/', async (req, res, next) => {
       return res.status(503).json({ error:'TFT static 데이터가 완전하지 않습니다. 서버 로그를 확인해주세요.' });
     }
 
-    const account      = await getAccountByRiotId(gameName, tagLine);
-    const summonerInfo = await getSummonerByPuuid(account.puuid);
-    const leagueEntry  = await getLeagueEntriesBySummonerId(summonerInfo.id);
-    const ids     = await getMatchIdsByPUUID(account.puuid, 10);
-    const matches = [];
+    const account      = await getAccountByRiotId(gameName, tagLine, region);
+    const summonerInfo = await getSummonerByPuuid(account.puuid, region);
+    let leagueEntry = null;
+    if (summonerInfo && summonerInfo.puuid) {
+      console.log(`DEBUG: Calling getLeagueEntriesByPuuid with puuid: ${summonerInfo.puuid}`);
+      try {
+        leagueEntry = await getLeagueEntriesByPuuid(summonerInfo.puuid, region);
+        if (leagueEntry) {
+          console.log(`DEBUG: Extracted League Entry: Tier=${leagueEntry.tier}, Rank=${leagueEntry.rank}, LP=${leagueEntry.leaguePoints}`);
+        } else {
+          console.log(`DEBUG: No League Entry found for puuid: ${summonerInfo.puuid}`);
+        }
+      } catch (error) {
+        console.error(`ERROR: getLeagueEntriesByPuuid failed:`, error.message);
+      }
+    } else {
+      console.warn(`WARN: summonerInfo 또는 summonerInfo.puuid가 유효하지 않아 리그 엔트리를 가져올 수 없습니다. summonerInfo:`, summonerInfo);
+    }
 
+    const ids     = await getMatchIdsByPUUID(account.puuid, 10, region);
+    const matches = [];
     if (Array.isArray(ids) && ids.length) {
       const raws = [];
       for (const id of ids) {
           try {
-              const detail = await getMatchDetail(id);
+              const detail = await getMatchDetail(id, region);
               raws.push(detail);
               await new Promise(resolve => setTimeout(resolve, 1500));
           } catch (detailError) {

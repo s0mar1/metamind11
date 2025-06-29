@@ -9,6 +9,9 @@ import TierListPage from './pages/tierlist/TierListPage';
 import RankingPage from './pages/ranking/RankingPage'; // 랭킹 페이지 import (기존)
 import AiQnaPage from './pages/AiQnaPage/AiQnaPage.jsx';  // ⬅️ 새로 만든 AI Q&A 페이지 import
 import DeckBuilderPage from './pages/DeckBuilderPage/DeckBuilderPage'; // ⬅️ 새로 추가
+import GuideListPage from './pages/GuideListPage/GuideListPage';
+import GuideDetailPage from './pages/GuideDetailPage/GuideDetailPage';
+import GuideEditorPage from './pages/GuideEditorPage/GuideEditorPage';
 import { useTFTData } from './context/TFTDataContext';
 import ChampionTooltip from './components/common/ChampionTooltip'; 
 
@@ -36,6 +39,10 @@ function App() {
           <Route path="/deck-builder" element={<DeckBuilderPage />}/>
           
           <Route path="/about" element={<AboutPage />} />
+          <Route path="/guides" element={<GuideListPage />} />
+          <Route path="/guides/:id" element={<GuideDetailPage />} />
+          <Route path="/guides/new" element={<GuideEditorPage />} />
+          
         </Routes>
       </main>
       {tooltip.visible && <ChampionTooltip champion={tooltip.data} position={tooltip.position} />}

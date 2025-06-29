@@ -10,6 +10,7 @@ import './services/scheduler.js';
 import connectDB from './config/db.js';
 import tierlistRoutes from './routes/tierlist.js';
 import rankingRoutes from './routes/ranking.js';
+import guideRoutes from './routes/guides.js';
 import staticDataRoutes from './routes/staticData.js';
 
 dotenv.config();
@@ -29,6 +30,8 @@ app.use('/api/ai', aiRoutes);
 // ⬇️ 중복 라우트 제거하고, 프론트엔드에서 사용하는 주소로 통일 
 app.use('/api/deck-tiers', tierlistRoutes); 
 app.use('/api/ranking', rankingRoutes);
+app.use('/api/guides', guideRoutes);
+
 
 app.get('/', (req, res) => {
   res.send('TFT Meta Analyzer Backend is running!');

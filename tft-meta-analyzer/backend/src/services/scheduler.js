@@ -31,6 +31,12 @@ const runScheduledJobs = async () => {
         analyzePlayerStats();
     }, { scheduled: true, timezone: "Asia/Seoul" });
 
+   cron.schedule('20 */12 * * *', () => {
+    console.log('정기 패치 데이터 비교 분석을 시작합니다.');
+    compareAndGeneratePatchNotes();
+   }, { scheduled: true, timezone: "Asia/Seoul" });
+
+
     // 서버가 시작될 때 모든 작업을 순차적으로 1회 실행
     console.log('서버 시작. 1회성 초기 데이터 작업을 순차적으로 실행합니다.');
     try {
