@@ -32,7 +32,7 @@ export default function DetailPanel({
 
   if (!selectedUnit) {
     return (
-      <div className="bg-gray-800 p-3 rounded-lg text-gray-400 text-sm">
+      <div className="bg-white p-3 rounded-lg text-gray-800 text-sm">
         선택된 유닛이 없습니다.
       </div>
     );
@@ -41,7 +41,7 @@ export default function DetailPanel({
   const unitBorderColor = COST_COLORS[selectedUnit.cost] || COST_COLORS[1];
 
   return (
-    <div className="bg-gray-800 p-3 rounded-lg text-white space-y-3">
+    <div className="bg-white p-3 rounded-lg text-gray-800 space-y-3">
       <div className="flex justify-between items-start">
         <div className="flex items-center gap-2">
             <img 
@@ -85,14 +85,14 @@ export default function DetailPanel({
         <div className="text-base font-semibold mb-1">추천 아이템</div>
         <div className="flex flex-col gap-1.5">
           {(selectedUnit.recommendedItems || []).slice(0, 5).map((item, index) => (
-            <div key={index} className="flex items-center bg-gray-700 p-1 rounded">
+            <div key={index} className="flex items-center bg-gray-100 p-1 rounded">
               <img src={item.icon} alt={item.name} className="w-8 h-8 rounded" />
               <div className="ml-2 flex-grow">
-                <div className="text-sm font-semibold text-gray-200">{item.name}</div>
+                <div className="text-sm font-semibold text-gray-800">{item.name}</div>
               </div>
               <div className="text-right">
                 <div className="text-xs text-gray-400">평균 등수</div>
-                <div className="text-sm font-bold text-blue-300">#{item.avgPlacement.toFixed(2)}</div>
+                <div className="text-sm font-bold text-brand-mint">#{item.avgPlacement.toFixed(2)}</div>
               </div>
             </div>
           ))}

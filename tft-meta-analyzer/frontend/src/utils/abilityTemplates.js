@@ -22,15 +22,25 @@ function createFormattedValue(varMap, key, prefix = '', isPercent = true) {
 
 function defaultTemplate(championData) {
     const { ability, stats } = championData;
-    const description = ability.desc
+
+    // 💡 안전장치 추가: ability 또는 ability.desc가 없을 경우를 대비
+    const description = (ability?.desc || '')
         .replace(/<[^>]+>/g, '')
         .replace(/@([^@]+)@/g, '')
         .replace(/\s+/g, ' ').trim();
+
     // getStructuredValues는 현재 구현에서 제외되었으므로, 빈 배열을 기본값으로 사용
     const values = []; 
+
+    // 💡 안전장치 추가: ability 또는 stats가 없을 경우를 대비
+    const abilityName = ability?.name || '스킬 정보 없음';
+    const manaInfo = (stats?.initialMana !== undefined && stats?.mana !== undefined) 
+        ? `${stats.initialMana}/${stats.mana}` 
+        : 'N/A';
+
     return {
-        name: ability.name,
-        mana: `${stats.initialMana}/${stats.mana}`,
+        name: abilityName,
+        mana: manaInfo,
         description,
         values,
     };

@@ -2,7 +2,7 @@
 
 const qnaContext = ({ question, chatHistory, metaDataForAI }) => `
 플레이어의 질문에 대해 롤토체스 챌린저 전문가로서 답변해주세요.
-당신은 MetaMind의 실시간 챌린저 통계 데이터를 참고할 수 있습니다.
+당신은 TFTai.gg의 실시간 챌린저 통계 데이터를 참고할 수 있습니다.
 ${metaDataForAI}
 
 [참고: 플레이어와의 이전 대화 기록]

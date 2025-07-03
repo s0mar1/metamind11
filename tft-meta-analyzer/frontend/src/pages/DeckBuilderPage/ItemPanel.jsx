@@ -53,6 +53,9 @@ export default function ItemPanel({ mini = false }) {
         LABEL_TRIM.forEach(s => {
           if (label.endsWith(s)) label = label.slice(0, -s.length).trim();
         });
+        if (label.includes('엑소테크')) {
+          label = '특성';
+        }
         return { id, label, items: list };
       });
   }, [itemsByCategory]);
@@ -62,9 +65,9 @@ export default function ItemPanel({ mini = false }) {
     if (!active && tabs.length) setActive(tabs[0].id);
   }, [tabs, active]);
 
-  if (loading) return <p className="text-gray-300">아이템 로딩 중…</p>;
+  if (loading) return <p className="text-gray-800">아이템 로딩 중…</p>;
   if (error)   return <p className="text-red-400">로드 오류: {error}</p>;
-  if (!tabs.length) return <p className="text-gray-400">표시할 아이템이 없습니다.</p>;
+  if (!tabs.length) return <p className="text-gray-800">표시할 아이템이 없습니다.</p>;
 
   if (mini) {
     return (
@@ -92,21 +95,21 @@ export default function ItemPanel({ mini = false }) {
   }
 
   return (
-    <div className="bg-gray-800 p-4 rounded-lg text-white flex flex-col h-full">
+    <div className="bg-white p-4 rounded-lg text-gray-800 flex flex-col h-full">
       <h2 className="text-xl font-bold mb-3">아이템</h2>
 
       {/* 탭 버튼 */}
-      <div className="flex overflow-x-auto border-b border-gray-700 mb-3">
+      <div className="flex flex-wrap border-b border-gray-300 mb-3">
         {tabs.map(t => (
           <button
             key={t.id}
             type="button"
             onClick={() => setActive(t.id)}
             title={`${t.label} (${t.items.length})`}
-            className={`px-3 py-1 text-sm whitespace-nowrap ${
+            className={`px-2 py-1 text-sm whitespace-nowrap ${
               active === t.id
-                ? 'text-blue-400 border-b-2 border-blue-400'
-                : 'text-gray-400 hover:text-gray-200'
+                ? 'text-brand-mint border-b-2 border-brand-mint'
+                : 'text-gray-600 hover:text-text-primary'
             }`}
           >
             {t.label}
@@ -115,7 +118,7 @@ export default function ItemPanel({ mini = false }) {
       </div>
 
       {/* 아이콘 그리드 */}
-      <div className="flex-grow overflow-y-auto">
+      <div className="flex-grow overflow-y-auto overflow-x-hidden">
         {tabs.map(t => (
           <div key={t.id} className={active === t.id ? 'block' : 'hidden'}>
             <div

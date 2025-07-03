@@ -136,7 +136,7 @@ const MatchCard = ({ match, onToggle, isExpanded }) => {
           />
 
           <div style={styles.aiAnalysisContainer}>
-            <h4 style={styles.aiAnalysisTitle}>MetaMind AI 분석 피드백</h4>
+            <h4 style={styles.aiAnalysisTitle}>TFTai.gg AI 분석 피드백</h4>
             {aiLoading && <div style={styles.aiAnalysisLoading}>AI 분석 중입니다...</div>}
             {aiError && <div style={styles.aiAnalysisError}>{aiError}</div>}
             {aiAnalysis && !aiLoading && !aiError && (

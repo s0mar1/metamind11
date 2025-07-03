@@ -1,9 +1,40 @@
-// frontend/src/components/common/ChampionTooltip.jsx
-
-import React from 'react';
+import React, { useEffect } from 'react'; // useEffect 임포트
 import PropTypes from 'prop-types';
 import { useTFTData } from '../../context/TFTDataContext';
 import { generateTooltip } from '../../utils/abilityTemplates.js';
+
+// 챔피언의 스킬 아이콘 경로를 생성합니다.
+const getAbilityIconUrl = (iconPath) => {
+  if (!iconPath) return '';
+
+  let cleanedPath = iconPath.toLowerCase().replace('.dds', '.png');
+
+  // 1. 잘못된 전체 URL 접두사를 제거합니다.
+  const incorrectPrefix = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/';
+  if (cleanedPath.startsWith(incorrectPrefix)) {
+    cleanedPath = cleanedPath.substring(incorrectPrefix.length);
+  }
+
+  // 2. 경로가 'assets/characters/'로 시작하는지 확인하고, 그렇지 않다면 올바른 구조를 만듭니다.
+  if (!cleanedPath.startsWith('assets/characters/')) {
+    let championName = '';
+    // 경로에서 챔피언 이름 (예: tft14_renekton)을 추출합니다.
+    const championNameMatch = cleanedPath.match(/(tft\d+_[a-zA-Z]+)/);
+    if (championNameMatch && championNameMatch[1]) {
+      championName = championNameMatch[1];
+    } else {
+      // 챔피언 이름을 추출할 수 없는 경우 경고를 출력하고 빈 문자열을 반환합니다.
+      console.warn(`Could not extract champion name from path: ${cleanedPath}`);
+      return ''; 
+    }
+
+    if (championName) {
+      cleanedPath = `assets/characters/${championName}/hud/icons2d/${cleanedPath}`;
+    }
+  }
+
+  return `https://raw.communitydragon.org/latest/game/${cleanedPath}`;
+};
 
 const costColors = { 1: '#808080', 2: '#1E823C', 3: '#156293', 4: '#87259E', 5: '#B89D29' };
 const getCostColor = cost => costColors[cost] || costColors[1];
@@ -21,7 +52,7 @@ const TraitInfo = ({ traitData }) => {
 };
 
 export default function ChampionTooltip({ champion, position }) {
-  // const { traitMap } = useTFTData(); // traitMap 더 이상 필요 없음
+  const { hideTooltip } = useTFTData(); // hideTooltip 가져오기
 
   if (!champion) return null;
 
@@ -62,7 +93,7 @@ export default function ChampionTooltip({ champion, position }) {
         <div className="py-3 border-t border-gray-700 space-y-3">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <img src={ability.icon} alt={tooltipData.name} className="w-8 h-8 rounded" />
+              <img src={getAbilityIconUrl(ability.icon)} alt={tooltipData.name} className="w-8 h-8 rounded" />
               <p className="font-bold text-gray-200 text-sm">{tooltipData.name}</p>
             </div>
             <p className="text-gray-400 text-xs font-mono">마나: {tooltipData.mana}</p>

@@ -40,21 +40,17 @@ export const TFTDataProvider = ({ children }) => {
           axios.get('/api/static-data/items-by-category')
         ]);
 
-        // 추가 디버깅 로그
-        console.log("TFTDataContext: tftMetaResponse:", tftMetaResponse);
-        console.log("TFTDataContext: tftMetaResponse.data:", tftMetaResponse.data);
-        console.log("TFTDataContext: itemsByCategoryResponse.data:", itemsByCategoryResponse.data);
-
         const receivedTftData = tftMetaResponse.data;
-        console.log("TFTDataContext: Fetched TFT Meta Data (receivedTftData):", receivedTftData);
-        console.log("TFTDataContext: receivedTftData.traitMap (before extraction):", receivedTftData.traitMap);
 
         // 💡 핵심 수정: 백엔드에서 [key, value] 배열로 받은 traitMap과 krNameMap을 다시 Map 객체로 재구성합니다.
         const rehydratedTraitMap = new Map(receivedTftData.traitMap);
         const rehydratedKrNameMap = new Map(receivedTftData.krNameMap);
 
-        // traitMap에서 traits 배열을 추출 (Map으로 변환하기 전에)
-        const extractedTraits = Array.from(rehydratedTraitMap.values()); // Map의 값들을 배열로 추출
+        // 💡 핵심 수정: traitMap의 [key, value]를 모두 사용하여 각 trait 객체에 apiName을 주입합니다.
+        const extractedTraits = Array.from(rehydratedTraitMap.entries()).map(([apiName, traitData]) => ({
+          ...traitData,
+          apiName: apiName, 
+        }));
 
         setTftData({
           ...receivedTftData,
@@ -64,20 +60,11 @@ export const TFTDataProvider = ({ children }) => {
         });
         setItemsByCategory(itemsByCategoryResponse.data);
 
-        // 안전하게 길이 로그 출력
-        console.log(
-          "TFTDataContext: Data set. Champions:",
-          receivedTftData.champions ? receivedTftData.champions.length : "undefined",
-          "Traits:",
-          extractedTraits.length // 추출된 traits의 길이를 로그
-        );
-
       } catch (error) {
         console.error("TFT 데이터 로딩 실패:", error);
         setError(error.response?.data?.error || error.message || "데이터 로딩 중 알 수 없는 오류 발생");
       } finally {
         setLoading(false);
-        console.log("TFTDataContext: Loading set to false.");
       }
     };
     fetchData();

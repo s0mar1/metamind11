@@ -100,10 +100,20 @@ function HexCell({ x, y, CELL, SPACING, onUnitAction }) {
         className="w-full h-full"
         style={{
           clipPath: `polygon(${HEX_CLIP})`,
-          backgroundColor: '#2d323d',
-          border: `2px solid ${borderColor}`,
+          backgroundColor: borderColor, /* 테두리 색상 */
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
         }}
-      />
+      >
+        <div
+          className="w-[calc(100%-4px)] h-[calc(100%-4px)]" /* 4px는 테두리 두께 */
+          style={{
+            clipPath: `polygon(${HEX_CLIP})`,
+            backgroundColor: '#E0E0E0', /* 육각형 셀 배경색 */
+          }}
+        />
+      </div>
     </div>
   );
 }

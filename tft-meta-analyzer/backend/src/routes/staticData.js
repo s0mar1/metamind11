@@ -77,6 +77,11 @@ router.get('/items-by-category', async (req, res, next) => {
 router.get('/tft-meta', async (req, res, next) => {
   try {
     const tft = await getTFTData();
+    console.log('[staticData.js] Checking tft data before 503 check:');
+    console.log('  tft.traitMap?.size:', tft.traitMap?.size);
+    console.log('  tft.champions?.length:', tft.champions?.length);
+    console.log('  tft.items?.completed?.length:', tft.items?.completed?.length);
+    console.log('  tft.krNameMap:', !!tft.krNameMap);
     if (!tft || !tft.traitMap?.size || !tft.champions?.length || !tft.items?.completed?.length || !tft.krNameMap) {
       return res.status(503).json({ error: 'TFT static 데이터가 완전하지 않습니다. 서버 로그를 확인해주세요.' });
     }

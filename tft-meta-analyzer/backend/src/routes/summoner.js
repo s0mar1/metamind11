@@ -38,14 +38,8 @@ router.get('/', async (req, res, next) => {
     const summonerInfo = await getSummonerByPuuid(account.puuid, region);
     let leagueEntry = null;
     if (summonerInfo && summonerInfo.puuid) {
-      console.log(`DEBUG: Calling getLeagueEntriesByPuuid with puuid: ${summonerInfo.puuid}`);
       try {
         leagueEntry = await getLeagueEntriesByPuuid(summonerInfo.puuid, region);
-        if (leagueEntry) {
-          console.log(`DEBUG: Extracted League Entry: Tier=${leagueEntry.tier}, Rank=${leagueEntry.rank}, LP=${leagueEntry.leaguePoints}`);
-        } else {
-          console.log(`DEBUG: No League Entry found for puuid: ${summonerInfo.puuid}`);
-        }
       } catch (error) {
         console.error(`ERROR: getLeagueEntriesByPuuid failed:`, error.message);
       }
@@ -97,9 +91,6 @@ router.get('/', async (req, res, next) => {
             return { name: foundItem?.name || n, image_url: foundItem?.icon || null }; 
           });
           
-          console.log(`DEBUG: Unit ${u.character_id} - ItemNames from Riot:`, u.itemNames);
-          console.log(`DEBUG: Unit ${u.character_id} - Processed Items:`, processedItems);
-
           return {
             character_id: u.character_id,
             name: ch?.name || u.character_id, 
@@ -109,20 +100,16 @@ router.get('/', async (req, res, next) => {
           };
         });
         
-        console.log(`DEBUG: Riot original traits for participant:`, me.traits);
-        
         const processedTraits = (me.traits || []).map(riotTrait => {
             const apiName = riotTrait.name;
             const currentCount = riotTrait.num_units || riotTrait.tier_current || 0; // num_units 우선
 
-            console.log(`DEBUG_TRAIT_PROCESS: Processing Riot Trait: ${apiName}, Raw Count (num_units): ${riotTrait.num_units}, Raw Count (tier_current): ${riotTrait.tier_current}, Final currentCount: ${currentCount}`);
             const styleInfo = getTraitStyleInfo(apiName, currentCount, tft);
             
             if (!styleInfo) {
                 console.warn(`WARN: 특성 ${riotTrait.name} (매치 ${match.metadata.match_id.substring(0,8)}...) TFT static 데이터에서 찾을 수 없음. styleInfo is null.`);
                 return null;
             }
-            console.log(`DEBUG_TRAIT_PROCESS: Processed StyleInfo for ${apiName}:`, styleInfo);
 
             return {
                 name: styleInfo.name,
@@ -139,8 +126,6 @@ router.get('/', async (req, res, next) => {
 
         processedTraits.sort((a, b) => (b.styleOrder - a.styleOrder) || (b.tier_current - a.tier_current));
         
-        console.log(`DEBUG: Processed Traits:`, processedTraits);
-
         matches.push({
           matchId: match.metadata.match_id, game_datetime: match.info.game_datetime,
           placement: me.placement, level: me.level,

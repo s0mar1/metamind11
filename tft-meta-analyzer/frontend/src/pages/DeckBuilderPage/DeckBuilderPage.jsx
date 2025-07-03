@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useTFTData } from '../../context/TFTDataContext';
@@ -12,7 +12,7 @@ import DetailPanel from './DetailPanel';
 import { useNavigate } from 'react-router-dom';
 
 export default function DeckBuilderPage() {
-  const { champions, items, augments, traits, loading } = useTFTData();
+  const { champions, loading } = useTFTData(); // `items`, `augments`, `traits`는 직접 사용하지 않으므로 제거, `loading` 추가
   const [placedUnits, setPlacedUnits] = useState({});
   const [selectedKey, setSelectedKey] = useState(null);
   const navigate = useNavigate();
@@ -34,7 +34,6 @@ export default function DeckBuilderPage() {
 
       const fullUnitData = champions.find(c => c.apiName === apiName);
       if (!fullUnitData) {
-        console.warn('Full unit data not found for:', apiName);
         return prev;
       }
 
@@ -103,40 +102,36 @@ export default function DeckBuilderPage() {
   }, [navigate, placedUnits]);
 
   const selectedUnit = selectedKey ? placedUnits[selectedKey] : null;
+  const unitsForSynergy = useMemo(() => {
+    const units = Object.values(placedUnits);
+    return units;
+  }, [placedUnits]);
 
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="flex flex-col min-h-[calc(100vh-theme(space.16))] bg-background-base p-4 lg:p-6 relative z-0">
-        {/* 상단 컨트롤 패널 */}
-        <div className="bg-gray-800 p-4 rounded-lg text-white mb-4 shadow-md z-10">
+        <div className="bg-white p-4 rounded-lg text-gray-800 mb-4 shadow-md z-10">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold">덱 빌더</h2>
             <button
               onClick={handleCreateGuide}
-              className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded text-sm font-semibold"
+              className="bg-brand-mint hover:bg-brand-mint text-white px-4 py-2 rounded text-sm font-semibold"
             >
               공략 작성
             </button>
           </div>
         </div>
 
-        {/* 중앙 영역 */}
         <div className="grid grid-cols-[180px_minmax(720px,1fr)_240px] gap-5 mb-4 flex-grow">
-          {/* 왼쪽 시너지 */}
-          <aside className="bg-gray-800 p-4 rounded-lg shadow-md h-full z-10"><SynergyPanel placedUnits={placedUnits} /></aside>
-          {/* 보드 */}
-          <main className="flex-grow flex justify-center items-center bg-gray-900 rounded-lg p-4 shadow-md z-10"><HexGrid placedUnits={placedUnits} onUnitAction={handleUnitAction} onSelectUnit={handleSelectUnit} onUnitRemove={handleUnitRemove} onItemDrop={handleEquip} selectedKey={selectedKey} /></main>
-          {/* 상세 */}
-          <aside className="bg-gray-800 p-4 rounded-lg shadow-md h-full z-10"><DetailPanel selectedUnit={selectedUnit} onUnitRemove={handleUnitRemove} onChangeStar={handleChangeStar} onEquip={handleEquip} onUnequip={handleUnequip} /></aside>
+          <aside className="bg-white p-4 rounded-lg shadow-md h-full z-10"><SynergyPanel placedUnits={unitsForSynergy} /></aside>
+          <main className="flex-grow flex justify-center items-center bg-white rounded-lg p-4 shadow-md z-10"><HexGrid placedUnits={placedUnits} onUnitAction={handleUnitAction} onSelectUnit={handleSelectUnit} onUnitRemove={handleUnitRemove} onItemDrop={handleEquip} selectedKey={selectedKey} /></main>
+          <aside className="bg-white p-4 rounded-lg shadow-md h-full z-10"><DetailPanel selectedUnit={selectedUnit} onUnitRemove={handleUnitRemove} onChangeStar={handleChangeStar} onEquip={handleEquip} onUnequip={handleUnequip} /></aside>
         </div>
 
-        {/* 하단 패널 */}
-        <div className="bg-gray-800 p-4 rounded-lg shadow-md z-10">
-          <div className="grid grid-cols-12 gap-5">
-            <div className="col-span-8"><UnitPanel /></div>
-            <div className="col-span-4"><ItemPanel /></div>
-          </div>
-        </div>
+        <div className="grid grid-cols-12 gap-5">
+              <div className="col-span-8 bg-white p-4 rounded-lg shadow-md"><UnitPanel /></div>
+              <div className="col-span-4 bg-white p-4 rounded-lg shadow-md"><ItemPanel /></div>
+            </div>
       </div>
     </DndProvider>
   );

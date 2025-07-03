@@ -54,9 +54,6 @@ router.get('/:matchId', async (req, res, next) => {
           return { name: foundItem?.name || n, image_url: foundItem?.icon || null }; 
         });
         
-        console.log(`DEBUG (match.js): Unit ${u.character_id} - ItemNames from Riot:`, u.itemNames);
-        console.log(`DEBUG (match.js): Unit ${u.character_id} - Processed Items:`, processedItems);
-
         return {
           character_id: u.character_id,
           name: ch?.name || u.character_id, 
@@ -66,21 +63,17 @@ router.get('/:matchId', async (req, res, next) => {
         };
       });
 
-      console.log(`DEBUG (match.js): Riot original traits for participant:`, p.traits);
-      
       const processedTraits = (p.traits || [])
         .map(riotTrait => {
           const apiName = riotTrait.name;
           const currentCount = riotTrait.num_units || riotTrait.tier_current || 0;
 
-          console.log(`DEBUG_TRAIT_PROCESS (match.js): Processing Riot Trait: ${apiName}, Raw Count (num_units): ${riotTrait.num_units}, Raw Count (tier_current): ${riotTrait.tier_current}, Final currentCount: ${currentCount}`);
           const styleInfo = getTraitStyleInfo(apiName, currentCount, tft);
           
           if (!styleInfo) {
               console.warn(`WARN (match.js): 특성 ${riotTrait.name} (매치 ${matchDetail.metadata.match_id.substring(0,8)}...) TFT static 데이터에서 찾을 수 없음. styleInfo is null.`);
               return null;
           }
-          console.log(`DEBUG_TRAIT_PROCESS (match.js): Processed StyleInfo for ${apiName}:`, styleInfo);
 
           return {
               name: styleInfo.name,
@@ -99,8 +92,6 @@ router.get('/:matchId', async (req, res, next) => {
 
       processedTraits.sort((a, b) => (b.styleOrder - a.styleOrder) || (b.tier_current - a.tier_current));
       
-      console.log(`DEBUG (match.js): Processed Traits:`, processedTraits);
-
       return { ...p, units, traits: processedTraits };
     });
 

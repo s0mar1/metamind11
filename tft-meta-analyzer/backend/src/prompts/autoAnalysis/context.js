@@ -1,7 +1,7 @@
 // backend/src/prompts/autoAnalysis/context.js
 
 const autoAnalysisContext = ({ placement, lastRound, goldLeft, totalDamageToPlayers, userTraits, userUnits, otherParticipantsData, metaDataForAI }) => `
-MetaMind의 실시간 챌린저 통계 데이터를 기반으로 플레이어의 게임을 분석합니다.
+TFTai.gg의 실시간 챌린저 통계 데이터를 기반으로 플레이어의 게임을 분석합니다.
 **플레이어의 게임 기록과 다른 플레이어들의 덱 정보를 면밀히 검토하고,
 [현재 챌린저 메타 주요 덱 정보]를 바탕으로 플레이어에게 가장 적합한 전략적 피드백을 제공해주세요.**
 **모든 챌린저 덱은 기본적으로 강력하다는 전제 하에, 플레이어가 현재 메타에서 어떤 잠재력을 더 발휘할 수 있었는지에 집중합니다.**

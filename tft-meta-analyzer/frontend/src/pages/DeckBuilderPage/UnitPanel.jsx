@@ -52,14 +52,11 @@ function DraggableUnit({ champion }) {
 
 export default function UnitPanel({ mini = false }) {
   const { champions, traits, loading } = useTFTData();
-  console.log("DEBUG: UnitPanel - champions:", champions);
-  console.log("DEBUG: UnitPanel - traits:", traits);
   const [filterTrait, setFilterTrait] = useState(null);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState('cost'); // 'cost', 'origin', 'class'
 
   const filtered = useMemo(() => {
-    console.log("DEBUG: UnitPanel - filtered useMemo re-evaluating...");
     if (!champions) return [];
 
     let currentChampions = champions;
@@ -73,38 +70,31 @@ export default function UnitPanel({ mini = false }) {
     // 탭에 따른 필터링 및 정렬
     if (activeTab === 'cost') {
       const sorted = currentChampions.sort((a, b) => (a.cost !== b.cost ? a.cost - b.cost : a.name.localeCompare(b.name, 'ko')));
-      console.log("DEBUG: UnitPanel - filtered (cost tab):", sorted);
       return sorted;
     } else if (activeTab === 'origin' || activeTab === 'class') {
       if (filterTrait) {
         currentChampions = currentChampions.filter(c => c.traits.includes(filterTrait)); // 💡 수정: 챔피언의 traits (한국어 이름)와 filterTrait (선택된 한국어 이름) 비교
       }
-      console.log("DEBUG: UnitPanel - filtered (origin/class tab, before group):", currentChampions);
       return currentChampions; // 필터링만 수행, 정렬은 그룹화에서
     }
 
-    console.log("DEBUG: UnitPanel - filtered (default):", currentChampions);
     return currentChampions; // 기본값
   }, [champions, filterTrait, search, activeTab]);
 
   const origins = useMemo(() => {
     const result = (traits || []).filter(t => t.type === 'origin');
-    console.log("DEBUG: UnitPanel - origins:", result);
     return result;
   }, [traits]);
   const classes = useMemo(() => {
     const result = (traits || []).filter(t => t.type === 'class');
-    console.log("DEBUG: UnitPanel - classes:", result);
     return result;
   }, [traits]);
 
   const groupedChampions = useMemo(() => {
-    console.log("DEBUG: UnitPanel - groupedChampions useMemo re-evaluating...");
     if (activeTab === 'cost') return null; // 가격순 탭에서는 그룹화하지 않음
 
     const groupMap = new Map();
     const targetTraits = activeTab === 'origin' ? origins : classes;
-    console.log("DEBUG: UnitPanel - groupedChampions - targetTraits:", targetTraits);
 
     // 챔피언을 해당 계열/직업에 따라 그룹화
     filtered.forEach(champion => {
@@ -126,11 +116,10 @@ export default function UnitPanel({ mini = false }) {
 
     // 그룹 자체를 이름순으로 정렬
     const result = Array.from(groupMap.values()).sort((a, b) => a.trait.name.localeCompare(b.trait.name, 'ko'));
-    console.log("DEBUG: UnitPanel - groupedChampions result:", result);
     return result;
   }, [filtered, activeTab, origins, classes]);
 
-  if (loading) return <div className="text-gray-300">유닛 목록 로딩 중...</div>;
+  if (loading) return <div className="text-gray-800">유닛 목록 로딩 중...</div>;
 
   if (mini) {
     return (
@@ -154,7 +143,7 @@ export default function UnitPanel({ mini = false }) {
   }
 
   return (
-    <div className="bg-gray-800 p-4 rounded-lg text-white h-full overflow-y-auto space-y-3">
+    <div className="bg-white p-4 rounded-lg text-gray-800 h-full overflow-y-auto space-y-3">
       <div className="flex justify-between items-center">
         <h2 className="font-bold text-xl">유닛 목록</h2>
         <input
@@ -168,22 +157,22 @@ export default function UnitPanel({ mini = false }) {
       </div>
 
       {/* 메인 필터 탭 */}
-      <div className="flex border-b border-gray-700 mb-3">
+      <div className="flex border-b border-gray-300 mb-3">
         <button
           onClick={() => { setActiveTab('cost'); setFilterTrait(null); }}
-          className={`px-4 py-2 text-sm font-semibold ${activeTab === 'cost' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-gray-200'}`}
+          className={`px-4 py-2 text-sm font-semibold ${activeTab === 'cost' ? 'text-brand-mint border-b-2 border-brand-mint' : 'text-gray-600 hover:text-text-primary'}`}
         >
           가격순
         </button>
         <button
           onClick={() => setActiveTab('origin')}
-          className={`px-4 py-2 text-sm font-semibold ${activeTab === 'origin' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-gray-200'}`}
+          className={`px-4 py-2 text-sm font-semibold ${activeTab === 'origin' ? 'text-brand-mint border-b-2 border-brand-mint' : 'text-gray-600 hover:text-text-primary'}`}
         >
           계열
         </button>
         <button
           onClick={() => setActiveTab('class')}
-          className={`px-4 py-2 text-sm font-semibold ${activeTab === 'class' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-gray-200'}`}
+          className={`px-4 py-2 text-sm font-semibold ${activeTab === 'class' ? 'text-brand-mint border-b-2 border-brand-mint' : 'text-gray-600 hover:text-text-primary'}`}
         >
           직업
         </button>
@@ -238,7 +227,7 @@ export default function UnitPanel({ mini = false }) {
 function FilterGroup({ title, items, selected, onSelect }) {
   return (
     <div>
-      <h3 className="text-sm font-semibold text-gray-400 mb-1.5">{title}</h3>
+      <h3 className="text-sm font-semibold text-gray-600 mb-1.5">{title}</h3>
       <div className="flex flex-wrap gap-1.5">
         {items.map(item => {
           const value = item.value ?? item.apiName;
@@ -247,7 +236,7 @@ function FilterGroup({ title, items, selected, onSelect }) {
             <button
               key={item.name}
               onClick={() => onSelect(item.name)}
-              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors duration-200 ${isSelected ? 'bg-blue-500 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'}`}>
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors duration-200 ${isSelected ? 'bg-brand-mint text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800 hover:text-text-primary'}`}>
               {item.icon && <img src={item.icon} alt={item.name} className="w-4 h-4" />}
               <span>{item.name}</span>
             </button>

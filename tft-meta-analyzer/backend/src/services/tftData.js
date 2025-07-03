@@ -20,6 +20,12 @@ const toPNG = (path) => {
   if (!path) return null;
   let lowerPath = path.toLowerCase();
 
+  // 💡 핵심 수정: characters/ 경로를 가장 먼저 처리하여 다른 조건에 걸리지 않도록 합니다.
+  if (lowerPath.startsWith('characters/')) {
+    lowerPath = lowerPath.replace(/\.(tex|dds)$/, '.png'); // .tex/.dds -> .png 변환
+    return `${CDN_URL_GAME_BASE}${lowerPath}`;
+  }
+
   /* (1) particles/tft/item_icons  전용 — 세트 4→14 엠블럼 + .tex→.png  */
   if (lowerPath.includes('assets/maps/particles/tft/item_icons/')) {
 
@@ -64,9 +70,6 @@ const toPNG = (path) => {
     const processed = lowerPath.substring('assets/'.length);
     return `${CDN_URL_PLUGINS_BASE}assets/${processed}`;
   }
-  if (lowerPath.startsWith('characters/') || lowerPath.startsWith('v1/champion-icons/')) {
-    return `${CDN_URL_PLUGINS_BASE}${lowerPath}`;
-  }
   if (lowerPath.startsWith('maps/')) {
     return `${CDN_URL_GAME_BASE}assets/${lowerPath}`;
   }
@@ -105,8 +108,6 @@ export const getTraitStyleInfo = (traitApiName, currentUnitCount, tftStaticData)
         currentThreshold = activeEffectForCount.minUnits;
         const rawStyleNumber = activeEffectForCount.style;
 
-        console.log(`DEBUG_STYLE_MAPPING: Trait: ${traitApiName}, Count: ${currentUnitCount}, Raw Style Num from CD: ${rawStyleNumber}`);
-
         switch (rawStyleNumber) {
             case 1:
                 styleKey = 'bronze';
@@ -132,7 +133,6 @@ export const getTraitStyleInfo = (traitApiName, currentUnitCount, tftStaticData)
                 console.warn(`WARN_STYLE_MAPPING: Unknown rawStyleNumber ${rawStyleNumber} for trait ${traitApiName}. Falling back to inactive.`);
                 break;
         }
-        console.log(`DEBUG_STYLE_MAPPING: Assigned styleKey: ${styleKey} based on Raw Style Num: ${rawStyleNumber}`);
 
         styleOrder = STYLE_ORDER[styleKey] || 0;
     } else {
@@ -208,7 +208,13 @@ const getTFTData = async () => {
                     if (krAbility) {
                         finalAbility.name = krAbility.name || finalAbility.name; // 한글 스킬 이름
                         finalAbility.desc = krAbility.desc || finalAbility.desc; // 한글 스킬 설명
+                        // 💡 추가: 스킬 아이콘 경로도 toPNG 처리
+                        finalAbility.icon = toPNG(krAbility.icon) || toPNG(baseAbility.icon);
                     }
+                }
+                // 💡 추가: 한글 데이터가 없어도 baseAbility.icon을 toPNG 처리
+                if (!finalAbility.icon && baseAbility.icon) {
+                    finalAbility.icon = toPNG(baseAbility.icon);
                 }
             }
             
@@ -222,9 +228,7 @@ const getTFTData = async () => {
                 traits: krChamp ? krChamp.traits : enChamp.traits, // 💡 핵심 수정: krChamp의 traits 사용, 없으면 enChamp 사용
             };
         });
-    console.log("DEBUG: Sample Champion Traits after processing in tftData.js:", champions[0]?.traits);
     const traitMap = new Map();
-    console.log("tftData.js: enSetData.traits before forEach:", enSetData.traits);
     enSetData.traits.forEach(trait => {
         const krName = krTraitNames.get(trait.apiName);
         if (krName) {
@@ -234,7 +238,7 @@ const getTFTData = async () => {
         const mapKey = trait.apiName.toLowerCase();
 
         // 💡 핵심 수정: 계열/직업 목록을 기반으로 type 할당
-        const originsList = ['거리의 악마', '군주', '네트워크의 신', '니트로', '동물특공대', '바이러스', '사이버보스', '범죄 조직', '사이퍼', '신성기업', '엑소테크', '영혼 살해자', '폭발 봇', '황금황소'];
+        const originsList = ['거리의 악마', '군주', '네트워크의 신', '니트로', '동물특공대', '바이러스', '사이버보스', '범죄 조직', '사이퍼', '신성기업', '엑소테크', '영혼 살해자', '폭발 봇', '황금 황소'];
         const classesList = ['기술광', '난동꾼', '다이나모', '사격수', '선봉대', '속사포', '요새', '증.폭.', '책략가', '처형자', '학살자'];
 
         if (originsList.includes(trait.name)) {
@@ -249,16 +253,11 @@ const getTFTData = async () => {
         }
 
         traitMap.set(mapKey, trait);
-        console.log("tftData.js: Added to traitMap - Key:", mapKey, "Value:", trait);
     });
-    console.log("tftData.js: traitMap size after population:", traitMap.size);
-
-    // traitMap을 일반 객체로 변환하여 JSON 직렬화에 대비
-    const plainTraitMap = {};
+    const plainTraitMap = {}; // plainTraitMap 선언
     traitMap.forEach((value, key) => {
         plainTraitMap[key] = value;
     });
-    console.log("tftData.js: plainTraitMap after conversion:", plainTraitMap);
 
     // 💡 핵심 수정: processedAugments 변수 초기화 추가
     const basicItems = [];

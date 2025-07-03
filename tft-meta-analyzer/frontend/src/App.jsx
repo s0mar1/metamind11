@@ -17,7 +17,7 @@ import ChampionTooltip from './components/common/ChampionTooltip';
 
 // 임시 페이지 컴포넌트들 (이제 AIChatPage는 AiQnaPage로 대체됩니다)
 // const AIChatPage = () => <div className="p-8 text-center">AI 질문하기 기능은 현재 개발 중입니다.</div>; // 이제 필요 없습니다.
-const AboutPage = () => <div className="p-8 text-center">MetaMind 프로젝트 소개 페이지입니다.</div>;
+const AboutPage = () => <div className="p-8 text-center">TFTai.gg 프로젝트 소개 페이지입니다.</div>;
 
 function App() {
  const { tooltip } = useTFTData();

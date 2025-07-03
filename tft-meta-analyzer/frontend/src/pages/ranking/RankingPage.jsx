@@ -14,6 +14,21 @@ const RankerRow = ({ ranker, rank }) => {
 
   const profileIconUrl = `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/profile-icons/${ranker.profileIconId}.jpg`;
 
+  const getTierIconUrl = (tier) => {
+    let effectiveTier = tier;
+    if (!tier || typeof tier !== 'string') {
+      // 티어 값이 유효하지 않을 경우, 아이콘을 표시하지 않거나 기본 이미지를 사용하도록 처리
+      // 현재는 빈 문자열을 반환하여 이미지가 로드되지 않도록 함
+      return ''; 
+    }
+
+    // 티어 이름에서 디비전(예: IV)을 제거하고 순수한 티어 이름만 추출
+    const mainTier = effectiveTier.split(' ')[0];
+    const formattedTier = mainTier.charAt(0).toUpperCase() + mainTier.slice(1).toLowerCase();
+    const LATEST_DDRAGON_VERSION = '14.12.1'; // 현재 사용 중인 DDragon 버전
+    return `https://ddragon.leagueoflegends.com/cdn/${LATEST_DDRAGON_VERSION}/img/tft-regalia/TFT_Regalia_${formattedTier}.png`;
+  };
+
   return (
     <tr className="border-b border-border-light hover:bg-gray-50 transition-colors">
       <td className="p-4 text-center font-bold text-lg text-text-secondary">{rank}</td>
@@ -33,11 +48,22 @@ const RankerRow = ({ ranker, rank }) => {
           </Link>
         </div>
       </td>
+      <td className="p-4 text-right">
+        <div className="flex items-center justify-end gap-3">
+          <img 
+            src={getTierIconUrl(ranker.tier)} 
+            alt={ranker.tier} 
+            className="w-8 h-8 mb-1" 
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+          <span className="text-xs font-semibold text-text-secondary">{ranker.tier}</span>
+        </div>
+      </td>
       <td className="p-4 text-center font-bold text-brand-mint">{ranker.leaguePoints.toLocaleString()} LP</td>
-      <td className="p-4 text-center font-semibold text-text-secondary">{totalGames} 게임</td>
-      <td className="p-4 text-center text-blue-500 font-bold">{top4Rate}%</td>
+      <td className="p-4 text-center font-semibold text-text-secondary bg-background-card">{totalGames} 게임</td>
+      <td className="p-4 text-center font-bold">{top4Rate}%</td>
       {/* ⬇️⬇️⬇️ 'N/A' 대신 실제 승률 표시 ⬇️⬇️⬇️ */}
-      <td className="p-4 text-center text-yellow-500 font-bold">{winRate}%</td>
+      <td className="p-4 text-center font-bold">{winRate}%</td>
     </tr>
   );
 };
@@ -127,16 +153,17 @@ function RankingPage() {
 
   return (
     <div className="bg-background-card shadow-md rounded-lg p-6 my-8">
-      <h1 className="text-2xl font-bold text-text-primary mb-6">TFT 챌린저 랭킹</h1>
+      <h1 className="text-2xl font-bold text-text-primary mb-6">랭크게임 순위표</h1>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[800px] text-sm">
           <thead className="border-b-2 border-border-light">
             <tr>
               <th className="p-3 text-center w-16 font-bold text-text-secondary">#</th>
               <th className="p-3 text-left font-bold text-text-secondary">소환사</th>
+              <th className="p-3 text-center w-32 font-bold text-text-secondary">티어</th>
               <th className="p-3 text-center w-32 font-bold text-text-secondary">LP</th>
               <th className="p-3 text-center w-32 font-bold text-text-secondary">총 게임 수</th>
-              <th className="p-3 text-center w-28 font-bold text-text-secondary">순방률 (Top 4)</th>
+              <th className="p-3 text-center w-28 font-bold text-text-secondary">순방률<br />(Top 4)</th>
               <th className="p-3 text-center w-28 font-bold text-text-secondary">승률 (1위)</th>
             </tr>
           </thead>

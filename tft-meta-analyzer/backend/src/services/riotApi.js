@@ -40,7 +40,6 @@ const api = axios.create({
 export const getAccountByRiotId = async (gameName, tagLine, region = 'kr') => {
   const apiRegion = getPlatformRegion(region);
   const url = `https://${apiRegion}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`;
-  console.log(`[Riot API Request] getAccountByRiotId URL: ${url}, Headers:`, api.defaults.headers.common);
   const response = await api.get(url);
   return response.data;
 };
@@ -54,7 +53,6 @@ export const getMatchIdsByPUUID = async (puuid, count = 10, region) => {
   const url = `https://${apiRegion}.api.riotgames.com/tft/match/v1/matches/by-puuid/${puuid}/ids?start=0&count=${count}&queue=${queueId}`;
   
   try {
-    console.log(`[Riot API Request] getMatchIdsByPUUID URL: ${url}, Headers:`, api.defaults.headers.common);
     const response = await api.get(url);
     return response.data;
   } catch (error) {
@@ -69,7 +67,7 @@ export const getMatchIdsByPUUID = async (puuid, count = 10, region) => {
 export const getMatchDetail = async (matchId, region) => {
   const apiRegion = getPlatformRegion(region);
   const url = `https://${apiRegion}.api.riotgames.com/tft/match/v1/matches/${matchId}`;
-  console.log(`[Riot API Request] getMatchDetail URL: ${url}, Headers:`, api.defaults.headers.common);
+  
   const response = await api.get(url);
   return response.data;
 };
@@ -77,7 +75,23 @@ export const getMatchDetail = async (matchId, region) => {
 export const getChallengerLeague = async (region = 'kr') => {
   const apiRegion = region;
   const url = `https://${apiRegion}.api.riotgames.com/tft/league/v1/challenger`;
-  console.log(`[Riot API Request] getChallengerLeague URL: ${url}, Headers:`, api.defaults.headers.common);
+  
+  const response = await api.get(url);
+  return response.data;
+};
+
+export const getGrandmasterLeague = async (region = 'kr') => {
+  const apiRegion = region;
+  const url = `https://${apiRegion}.api.riotgames.com/tft/league/v1/grandmaster`;
+  
+  const response = await api.get(url);
+  return response.data;
+};
+
+export const getMasterLeague = async (region = 'kr') => {
+  const apiRegion = region;
+  const url = `https://${apiRegion}.api.riotgames.com/tft/league/v1/master`;
+  
   const response = await api.get(url);
   return response.data;
 };
@@ -87,7 +101,7 @@ export const getChallengerLeague = async (region = 'kr') => {
 export const getAccountByPuuid = async (puuid, region) => {
   const apiRegion = getPlatformRegion(region);
   const url = `https://${apiRegion}.api.riotgames.com/riot/account/v1/accounts/by-puuid/${puuid}`;
-  console.log(`[Riot API Request] getAccountByPuuid URL: ${url}, Headers:`, api.defaults.headers.common);
+  
   const response = await api.get(url);
   return response.data;
 };
@@ -95,16 +109,13 @@ export const getAccountByPuuid = async (puuid, region) => {
 export const getSummonerByPuuid = async (puuid, region) => {
   const apiRegion = region;
   const url = `https://${apiRegion}.api.riotgames.com/tft/summoner/v1/summoners/by-puuid/${puuid}`;
-  console.log(`[Riot API Request] getSummonerByPuuid URL: ${url}, Headers:`, api.defaults.headers.common);
   const response = await api.get(url);
-  console.log('DEBUG: getSummonerByPuuid response.data:', response.data);
   return response.data;
 };
 
 export const getLeagueEntriesByPuuid = async (puuid, region) => {
   const apiRegion = region;
   const url = `https://${apiRegion}.api.riotgames.com/tft/league/v1/by-puuid/${puuid}`;
-  console.log(`[Riot API Request] getLeagueEntriesByPuuid URL: ${url}, Headers:`, api.defaults.headers.common);
   try {
     const response = await api.get(url);
     // Riot API 응답이 배열 형태일 것으로 예상

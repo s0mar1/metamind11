@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -10,11 +10,28 @@ import { decodeDeck } from '../../utils/deckCode';
 
 export default function GuideDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate(); // useNavigate 훅 추가
   const [guide, setGuide] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeLevel, setActiveLevel] = useState(8);
   const { champions, items, traitMap, allItems } = useTFTData();
+
+  // 임시 관리자 권한 (실제 구현 시에는 사용자 인증 시스템과 연동)
+  const [isAdmin, setIsAdmin] = useState(true);
+
+  const handleDeleteGuide = async () => {
+    if (window.confirm('정말로 이 공략을 삭제하시겠습니까?')) {
+      try {
+        await axios.delete(`/api/guides/${id}`);
+        alert('공략이 성공적으로 삭제되었습니다.');
+        navigate('/guides'); // 공략 목록 페이지로 이동
+      } catch (err) {
+        console.error('공략 삭제 실패:', err.response?.data || err.message);
+        alert('공략 삭제에 실패했습니다.');
+      }
+    }
+  };
 
   useEffect(() => {
     const fetchGuide = async () => {
@@ -44,23 +61,33 @@ export default function GuideDetailPage() {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="p-4 text-white space-y-8">
+      <div className="p-4 text-gray-800 space-y-8">
         {/* 상단 헤더 */}
-        <header className="bg-gray-800 p-6 rounded-lg">
-          <h1 className="text-4xl font-bold text-blue-300">{guide.title}</h1>
-          <p className="text-gray-400 mt-2">난이도: {guide.difficulty}</p>
+        <header className="bg-white p-6 rounded-lg shadow-md">
+          <div className="flex justify-between items-center mb-2">
+            <h1 className="text-4xl font-bold text-gray-800">{guide.title}</h1>
+            {isAdmin && (
+              <button
+                onClick={handleDeleteGuide}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-semibold"
+              >
+                공략 삭제
+              </button>
+            )}
+          </div>
+          <p className="text-gray-600 mt-2">난이도: {guide.difficulty}</p>
         </header>
 
         {/* 덱 빌더 뷰 */}
         <section>
           <h2 className="text-2xl font-bold mb-4">레벨별 배치</h2>
-          <div className="bg-gray-800 p-4 rounded-lg">
+          <div className="bg-white p-4 rounded-lg shadow-md">
             <div className="flex justify-center gap-2 mb-4">
               {guide.level_boards.map(board => (
                 <button 
                   key={board.level} 
                   onClick={() => setActiveLevel(board.level)}
-                  className={`px-4 py-2 text-sm font-semibold rounded-md ${activeLevel === board.level ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}>
+                  className={`px-4 py-2 text-sm font-semibold rounded-md ${activeLevel === board.level ? 'bg-brand-mint' : 'bg-gray-200 hover:bg-gray-300'}`}>
                   레벨 {board.level}
                 </button>
               ))}
@@ -69,16 +96,16 @@ export default function GuideDetailPage() {
               <aside><SynergyPanel placedUnits={placedUnits} /></aside>
               <main className="flex justify-center"><HexGrid placedUnits={placedUnits} onUnitAction={() => {}} /></main>
             </div>
-            {activeBoard.notes && <p className="mt-4 text-center text-gray-300 p-2 bg-gray-900 rounded">{activeBoard.notes}</p>}
+            {activeBoard.notes && <p className="mt-4 text-center text-gray-800 p-2 bg-gray-100 rounded">{activeBoard.notes}</p>}
           </div>
         </section>
 
         {/* 플레이 팁 */}
         <section>
           <h2 className="text-2xl font-bold mb-4">운영 팁</h2>
-          <div className="bg-gray-800 p-6 rounded-lg space-y-3">
+          <div className="bg-white p-6 rounded-lg shadow-md space-y-3">
             {guide.play_tips.map((tip, index) => (
-              <p key={index} className="text-gray-300 leading-relaxed">- {tip}</p>
+              <p key={index} className="text-gray-800 leading-relaxed">- {tip}</p>
             ))}
           </div>
         </section>
@@ -86,17 +113,17 @@ export default function GuideDetailPage() {
         {/* 추천 아이템 */}
         <section>
           <h2 className="text-2xl font-bold mb-4">핵심 아이템</h2>
-          <div className="bg-gray-800 p-6 rounded-lg flex flex-wrap gap-4">
+          <div className="bg-white p-6 rounded-lg shadow-md flex flex-wrap gap-4">
             {guide.recommended_items.map(itemName => {
                 const itemData = items.find(i => i.apiName === itemName);
                 if (!itemData) return null;
                 return (
-                    <div key={itemData.apiName} className="flex items-center gap-2 bg-gray-700 p-2 rounded-md">
+                    <div key={itemData.apiName} className="flex items-center gap-2 bg-gray-100 p-2 rounded-md">
                         <img src={itemData.icon} alt={itemData.name} className="w-10 h-10"/>
                         <span className="font-semibold">{itemData.name}</span>
                     </div>
                 )
-            })}
+            })}}
           </div>
         </section>
       </div>

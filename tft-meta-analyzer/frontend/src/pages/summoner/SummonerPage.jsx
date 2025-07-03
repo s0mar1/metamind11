@@ -110,7 +110,6 @@ export default function SummonerPage() {
       />
       <div style={styles.statsAndGraphContainer}>
         <div style={styles.statsBlock}>
-          {console.log('DEBUG: SummonerPage data.league before passing to RankedStats:', data.league)}
           <RankedStats
             league={data.league}
             matches={data.matches || []}

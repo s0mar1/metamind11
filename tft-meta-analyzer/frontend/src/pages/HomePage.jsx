@@ -43,7 +43,7 @@ function HomePage() {
         <h1 className="text-5xl font-extrabold text-text-primary mb-4">당신의 플레이,</h1>
         <h2 className="text-5xl font-extrabold text-brand-mint mb-8">챌린저의 관점에서 분석해 보세요.</h2>
         <p className="text-text-secondary max-w-2xl mx-auto mb-12">
-          MetaMind는 상위 랭커들의 데이터를 실시간으로 분석하여, 당신의 게임에 대한 깊이 있는 피드백과 함께 최신 메타 트렌드를 제공합니다.
+          TFTai.gg는 상위 랭커들의 데이터를 실시간으로 분석하여, 당신의 게임에 대한 깊이 있는 피드백과 함께 최신 메타 트렌드를 제공합니다.
         </p>
         <HomeSearchBar />
       </div>

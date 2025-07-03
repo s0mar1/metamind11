@@ -168,6 +168,7 @@ export default function GuideEditorPage() {
     const guideData = {
       title,
       difficulty,
+      initialDeckLevel, // initialDeckLevel 추가
       level_boards: formattedLevelBoards,
       play_tips: playTips.filter(tip => tip.trim() !== ''),
       recommended_augments: recommendedAugments.filter(augment => augment.trim() !== ''),
@@ -189,30 +190,30 @@ export default function GuideEditorPage() {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="p-4 text-white">
+      <div className="p-4 text-gray-800">
         <h1 className="text-3xl font-bold mb-6">새 공략 작성</h1>
         <form onSubmit={handleSubmit} className="space-y-6">
         <div className="flex flex-wrap -mx-3 mb-6">
           {/* 기본 정보 */}
           <div className="w-full lg:w-3/5 px-3 mb-6 lg:mb-0">
-            <div className="bg-gray-800 p-6 rounded-lg shadow-md h-full">
+            <div className="bg-white p-6 rounded-lg shadow-md h-full">
               <h2 className="text-2xl font-bold mb-4">기본 정보</h2>
               <div className="mb-4">
-                <label htmlFor="title" className="block text-sm font-medium text-gray-300 mb-2">덱이름</label>
+                <label htmlFor="title" className="block text-sm font-medium text-gray-800 mb-2">덱이름</label>
                 <input
                   type="text"
                   id="title"
-                  className="w-full p-3 rounded-md bg-gray-700 border border-gray-600 text-white focus:ring focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-3 rounded-md bg-gray-100 border border-gray-300 text-gray-800 focus:ring focus:ring-blue-500 focus:border-blue-500"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   required
                 />
               </div>
               <div className="mb-4">
-                <label htmlFor="difficulty" className="block text-sm font-medium text-gray-300 mb-2">난이도</label>
+                <label htmlFor="difficulty" className="block text-sm font-medium text-gray-800 mb-2">난이도</label>
                 <select
                   id="difficulty"
-                  className="w-full p-3 rounded-md bg-gray-700 border border-gray-600 text-white focus:ring focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-3 rounded-md bg-gray-100 border border-gray-300 text-gray-800 focus:ring focus:ring-blue-500 focus:border-blue-500"
                   value={difficulty}
                   onChange={(e) => setDifficulty(e.target.value)}
                 >
@@ -226,13 +227,13 @@ export default function GuideEditorPage() {
 
           {/* 초기 덱 레벨 설정 */}
           <div className="w-full lg:w-2/5 px-3">
-            <div className="bg-gray-800 p-6 rounded-lg shadow-md h-full">
+            <div className="bg-white p-6 rounded-lg shadow-md h-full">
               <h2 className="text-2xl font-bold mb-4">초기 덱 레벨 설정</h2>
               <div className="mb-4">
-                <label htmlFor="initialDeckLevel" className="block text-sm font-medium text-gray-300 mb-2">이 덱의 완성 레벨은?</label>
+                <label htmlFor="initialDeckLevel" className="block text-sm font-medium text-gray-800 mb-2">이 덱의 완성 레벨은?</label>
                 <select
                   id="initialDeckLevel"
-                  className="w-full p-3 rounded-md bg-gray-700 border border-gray-600 text-white focus:ring focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-3 rounded-md bg-gray-100 border border-gray-300 text-gray-800 focus:ring focus:ring-blue-500 focus:border-blue-500"
                   value={initialDeckLevel}
                   onChange={(e) => setInitialDeckLevel(parseInt(e.target.value))}
                 >
@@ -246,7 +247,7 @@ export default function GuideEditorPage() {
         </div>
 
         {/* 레벨별 덱 구성 */}
-        <div className="bg-gray-800 p-6 rounded-lg shadow-md">
+        <div className="bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-2xl font-bold mb-4">레벨별 추천 빌드업,덱 구성</h2>
           <div className="flex gap-2 mb-4">
             {[4, 5, 6, 7, 8, 9, 10].map(level => (
@@ -254,7 +255,7 @@ export default function GuideEditorPage() {
                 key={level}
                 type="button"
                 onClick={() => setActiveLevel(level)}
-                className={`px-4 py-2 rounded-md text-sm font-semibold ${activeLevel === level ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+                className={`px-4 py-2 rounded-md text-sm font-semibold ${activeLevel === level ? 'bg-brand-mint' : 'bg-gray-200 hover:bg-gray-300'}`}
               >
                 Lv. {level}
               </button>
@@ -263,15 +264,15 @@ export default function GuideEditorPage() {
           {/* 중앙 영역 */}
           <div className="flex gap-3 mb-4">
             {/* 왼쪽 시너지 */}
-            <aside className="bg-gray-800 p-2 rounded-lg shadow-md h-full w-[150px]"><SynergyPanel placedUnits={activeBoard} /></aside>
+            <aside className="bg-white p-2 rounded-lg shadow-md h-full w-[150px]"><SynergyPanel placedUnits={Object.values(activeBoard)} /></aside>
             {/* 보드 */}
-            <main className="flex-grow flex justify-center items-center bg-gray-900 rounded-lg p-2 shadow-md w-[480px]"><HexGrid placedUnits={activeBoard} onUnitAction={handleUnitAction} onSelectUnit={handleSelectUnit} onUnitRemove={handleUnitRemove} onItemDrop={handleEquip} selectedKey={selectedKey} /></main>
+            <main className="flex-grow flex justify-center items-center bg-white rounded-lg p-2 shadow-md w-[480px]"><HexGrid placedUnits={activeBoard} onUnitAction={handleUnitAction} onSelectUnit={handleSelectUnit} onUnitRemove={handleUnitRemove} onItemDrop={handleEquip} selectedKey={selectedKey} /></main>
             {/* 상세 */}
-            <aside className="bg-gray-800 p-2 rounded-lg shadow-md h-full w-[220px]"><DetailPanel selectedUnit={selectedUnit} onUnitRemove={handleUnitRemove} onChangeStar={handleChangeStar} onEquip={handleEquip} onUnequip={handleUnequip} /></aside>
+            <aside className="bg-white p-2 rounded-lg shadow-md h-full w-[220px]"><DetailPanel selectedUnit={selectedUnit} onUnitRemove={handleUnitRemove} onChangeStar={handleChangeStar} onEquip={handleEquip} onUnequip={handleUnequip} /></aside>
           </div>
 
           {/* 하단 패널 */}
-          <div className="bg-gray-800 p-2 rounded-lg shadow-md">
+          <div className="bg-white p-2 rounded-lg shadow-md">
             <div className="grid grid-cols-12 gap-3">
               <div className="col-span-8"><UnitPanel /></div>
               <div className="col-span-4"><ItemPanel /></div>
@@ -280,12 +281,12 @@ export default function GuideEditorPage() {
         </div>
 
         {/* 플레이 팁 */}
-        <div className="bg-gray-800 p-6 rounded-lg shadow-md">
+        <div className="bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-2xl font-bold mb-4">플레이 팁</h2>
           {playTips.map((tip, index) => (
             <div key={index} className="flex items-center mb-3">
               <textarea
-                className="w-full p-3 rounded-md bg-gray-700 border border-gray-600 text-white focus:ring focus:ring-blue-500 focus:border-blue-500 resize-y"
+                className="w-full p-3 rounded-md bg-gray-100 border border-gray-300 text-gray-800 focus:ring focus:ring-blue-500 focus:border-blue-500 resize-y"
                 rows="3"
                 value={tip}
                 onChange={(e) => handlePlayTipChange(index, e.target.value)}
@@ -305,20 +306,20 @@ export default function GuideEditorPage() {
           <button
             type="button"
             onClick={handleAddPlayTip}
-            className="mt-4 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-md text-white text-sm font-semibold"
+            className="mt-4 px-4 py-2 bg-brand-mint hover:bg-brand-mint rounded-md text-white text-sm font-semibold"
           >
             팁 추가
           </button>
         </div>
 
         {/* 추천 증강체 */}
-        <div className="bg-gray-800 p-6 rounded-lg shadow-md">
+        <div className="bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-2xl font-bold mb-4">추천 증강체</h2>
           {recommendedAugments.map((augment, index) => (
             <div key={index} className="flex items-center mb-3">
               <input
                 type="text"
-                className="w-full p-3 rounded-md bg-gray-700 border border-gray-600 text-white focus:ring focus:ring-blue-500 focus:border-blue-500"
+                className="w-full p-3 rounded-md bg-gray-100 border border-gray-300 text-gray-800 focus:ring focus:ring-blue-500 focus:border-blue-500"
                 value={augment}
                 onChange={(e) => handleRecommendedAugmentChange(index, e.target.value)}
                 placeholder="증강체 이름을 입력하세요..."
@@ -337,18 +338,20 @@ export default function GuideEditorPage() {
           <button
             type="button"
             onClick={handleAddRecommendedAugment}
-            className="mt-4 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-md text-white text-sm font-semibold"
+            className="mt-4 px-4 py-2 bg-brand-mint hover:bg-brand-mint rounded-md text-white text-sm font-semibold"
           >
             증강체 추가
           </button>
         </div>
 
-        <button
-          type="submit"
-          className="w-full p-3 bg-blue-600 hover:bg-blue-700 rounded-md text-white text-lg font-bold transition-colors duration-200"
-        >
-          공략 저장
-        </button>
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            className="w-48 p-3 bg-brand-mint hover:bg-brand-mint rounded-md text-white text-lg font-bold transition-colors duration-200"
+          >
+            공략 저장
+          </button>
+        </div>
       </form>
     </div>
     </DndProvider>

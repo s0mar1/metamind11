@@ -16,26 +16,25 @@ export const collectTopRankerMatches = async () => {
     const currentSet = tftData.currentSet;
     console.log(`--- [최종] 랭커 및 매치 데이터 수집 작업 시작 (시즌 ${currentSet} 대상) ---`);
 
+    // 기존 랭커 데이터 삭제 (새로운 랭커 목록으로 갱신하기 위함)
+    console.log('[0단계] 기존 랭커 데이터 삭제...');
+    await Ranker.deleteMany({});
+    console.log('[0단계 완료] 기존 랭커 데이터 삭제 완료.');
+
     // 1단계: 랭커 목록 확보
     const challengerLeague = await getChallengerLeague('kr');
-    const topRankers = challengerLeague.entries.slice(0, 10);
+    const topRankers = challengerLeague.entries.slice(0, 50);
     console.log(`[1단계 완료] 챌린저 ${topRankers.length}명의 랭커 데이터 확보.`);
-    console.log("DEBUG: Full data for first 3 topRankers entries:");
-    topRankers.slice(0, 3).forEach((entry, index) => {
-      console.log(`  Entry ${index}:`, JSON.stringify(entry, null, 2));
-    });
 
     // 2단계: 랭커 프로필 업데이트
     console.log(`[2단계 시작] 챌린저 ${topRankers.length}명의 프로필 업데이트 시작...`);
     for (const entry of topRankers) {
       try {
-        // console.log(`[2단계 - 처리 중] 랭커 ID: ${entry.summonerId.substring(0,10)}... (PUUID: ${entry.puuid.substring(0,10)}...)`); // 상세 로그 제거
-        
         const summonerDetails = await getSummonerByPuuid(entry.puuid, 'kr');
-        await delay(1200); // API 호출 후 딜레이
+        await delay(1200);
 
-        const accountData = await getAccountByPuuid(summonerDetails.puuid, 'kr'); // puuid는 summonerDetails에서 가져옴
-        await delay(1200); // API 호출 후 딜레이
+        const accountData = await getAccountByPuuid(summonerDetails.puuid, 'kr');
+        await delay(1200);
         
         await Ranker.findOneAndUpdate(
             { puuid: summonerDetails.puuid },
@@ -46,15 +45,15 @@ export const collectTopRankerMatches = async () => {
                 tagLine: accountData.tagLine,
                 profileIconId: summonerDetails.profileIconId,
                 leaguePoints: entry.leaguePoints,
+                tier: challengerLeague.tier,
                 rank: entry.rank,
                 wins: entry.wins,
                 losses: entry.losses,
             },
             { upsert: true }
         );
-        console.log(`[2단계 - 완료] ${summonerDetails.name}#${accountData.tagLine} 프로필 업데이트 완료.`);
       } catch (e) {
-        console.error(`[2단계 - 에러] 랭커 ID: ${entry.summonerId.substring(0,10)}... 프로필 처리 중 에러: ${e.message}`);
+        console.error(`[2단계 - 에러] 랭커 PUUID: ${entry.puuid.substring(0,10)}... 프로필 처리 중 에러: ${e.message}`);
       }
     }
     console.log('[2단계 완료] 모든 랭커 프로필 업데이트 완료.');
@@ -98,7 +97,6 @@ export const collectTopRankerMatches = async () => {
         }
 
         await Match.create(matchDetail);
-        console.log(`[4단계 - 매치 상세] ✅ 매치 ${matchId.substring(0, 8)}... DB에 성공적으로 저장됨.`);
       } catch (detailError) {
         if (detailError.isAxiosError && detailError.response) {
             if (detailError.response.status === 404) {

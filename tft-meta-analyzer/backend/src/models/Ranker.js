@@ -31,6 +31,9 @@ const RankerSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  tier: {
+    type: String,
+  },
   rank: {
     type: String,
   },

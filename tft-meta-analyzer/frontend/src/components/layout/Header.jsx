@@ -28,7 +28,7 @@ const Header = () => {
           {/* 로고 (클릭 시 홈으로) */}
           <Link to="/" className="flex items-center gap-2">
             <LogoIcon />
-            <span className="text-xl font-bold text-text-primary">MetaMind</span>
+            <span className="text-xl font-bold text-text-primary">TFTai.gg</span>
           </Link>
 
           {/* 검색창 */}
@@ -51,7 +51,7 @@ const Header = () => {
             <NavLink to="/ranking" className={navLinkClass}>랭킹</NavLink>
             <NavLink to="/deck-builder" className={navLinkClass}>덱 빌더</NavLink> {/* ⬅️ 새로 추가 */}
             <NavLink to="/ai-chat" className={navLinkClass}>AI 질문하기</NavLink>
-            <NavLink to="/about" className={navLinkClass}>About MetaMind</NavLink>
+            <NavLink to="/about" className={navLinkClass}>About TFTai.gg</NavLink>
           </nav>
       </div>
     </header>

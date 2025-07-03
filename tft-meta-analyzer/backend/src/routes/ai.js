@@ -94,7 +94,7 @@ router.post('/analyze', async (req, res, next) => {
 
     let metaDataForAI = '';
     if (allMetaDecks.length > 0) {
-      metaDataForAI += "\n\n[현재 챌린저 메타 주요 덱 정보 (MetaMind 분석 데이터)]\n";
+      metaDataForAI += "\n\n[현재 챌린저 메타 주요 덱 정보 (TFTai.gg 분석 데이터)]\n";
       allMetaDecks.forEach((deck, index) => {
         const coreUnitsText = (deck.coreUnits || []).map(cu => {
             const items = cu.recommendedItems?.map(item => item.name).filter(Boolean).join(', ') || '없음';
@@ -155,7 +155,7 @@ router.post('/qna', async (req, res, next) => {
                                           .sort({ averagePlacement: 1 })
                                           .limit(10);
         if (allMetaDecks.length > 0) {
-          metaDataForAI += "\n\n[현재 챌린저 메타 주요 덱 정보 (MetaMind 분석 데이터)]\n";
+          metaDataForAI += "\n\n[현재 챌린저 메타 주요 덱 정보 (TFTai.gg 분석 데이터)]\n";
           allMetaDecks.forEach((deck, index) => {
             const coreUnitsText = (deck.coreUnits || []).map(cu => {
                 const items = cu.recommendedItems?.map(item => item.name).filter(Boolean).join(', ') || '없음';

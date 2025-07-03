@@ -30,6 +30,13 @@ const DeckGuideSchema = new mongoose.Schema({
     enum: ['Easy', 'Medium', 'Hard'],
     default: 'Medium'
   },
+  initialDeckLevel: {
+    type: Number,
+    required: true,
+    min: 1,
+    max: 10,
+    default: 8 // 기본값 설정
+  },
   level_boards: [LevelBoardSchema],
   play_tips: {
     type: [String],
