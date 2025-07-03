@@ -15,7 +15,7 @@ router.get('/:matchId', async (req, res, next) => {
     }
 
     const tft = await getTFTData();
-    const matchDetail = await getMatchDetail(matchId);
+    const matchDetail = await getMatchDetail(matchId, 'kr');
 
     // 💡 수정: tft.items?.completed?.length (예시)로 데이터를 검사
     if (!tft || !tft.traitMap?.size || !tft.champions?.length || !tft.items?.completed?.length || !tft.krNameMap) { // completed 아이템이 존재함을 확인

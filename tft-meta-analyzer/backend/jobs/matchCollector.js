@@ -31,10 +31,10 @@ export const collectTopRankerMatches = async () => {
     for (const entry of topRankers) {
       try {
         const summonerDetails = await getSummonerByPuuid(entry.puuid, 'kr');
-        await delay(1200);
+        await delay(918);
 
         const accountData = await getAccountByPuuid(summonerDetails.puuid, 'kr');
-        await delay(1200);
+        await delay(918);
         
         await Ranker.findOneAndUpdate(
             { puuid: summonerDetails.puuid },
@@ -67,7 +67,7 @@ export const collectTopRankerMatches = async () => {
       // console.log(`[3단계 - 매치 ID 수집] 랭커 ${ranker.summonerName}의 매치 ID 가져오는 중...`); // 상세 로그 제거
       const matchIds = await getMatchIdsByPUUID(ranker.puuid, 5, 'kr'); // 최근 5개 매치 ID
       allMatchIds.push(...matchIds);
-      await delay(1200); // API 호출 후 딜레이
+      await delay(1080); // API 호출 후 딜레이
     }
     
     const uniqueMatchIds = [...new Set(allMatchIds)];
@@ -88,7 +88,7 @@ export const collectTopRankerMatches = async () => {
 
         // console.log(`[4단계 - 매치 상세] 매치 ${matchId.substring(0, 8)}... 상세 정보 가져오는 중...`); // 상세 로그 제거
         const matchDetail = await getMatchDetail(matchId, 'kr');
-        await delay(1200); // API 호출 후 딜레이
+        await delay(1080); // API 호출 후 딜레이
         
         const matchDataVersion = matchDetail?.metadata?.data_version;
         if (!matchDataVersion || !matchDetail?.info?.game_length || matchDetail.info.game_length < 1) {
@@ -109,7 +109,7 @@ export const collectTopRankerMatches = async () => {
         } else {
             console.error(`[4단계 - 매치 상세] ❌ 매치 ${matchId.substring(0, 8)}... 처리 중 예상치 못한 에러:`, detailError.message, detailError.stack);
         }
-        await delay(1200); // 에러 발생 시에도 딜레이
+        await delay(1080); // 에러 발생 시에도 딜레이
       }
     }
     console.log('[4단계 완료] 모든 매치 데이터 수집 완료.');

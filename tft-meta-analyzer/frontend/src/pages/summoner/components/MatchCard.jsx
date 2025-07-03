@@ -112,16 +112,16 @@ const MatchCard = ({ match, onToggle, isExpanded }) => {
           <div style={styles.matchDetailsHeader}>
             <div style={styles.traitsContainer}>
               {traits
-                .filter(t => t.style !== 'inactive')
+                .filter(t => t && t.style !== 'inactive')
                 .sort((a, b) => b.styleOrder - a.styleOrder)
                 .map((trait) => (
-                  <Trait key={trait.apiName} trait={trait} showCount={true} />
+                  trait ? <Trait key={trait.apiName} trait={trait} showCount={true} /> : null
                 ))}
             </div>
             <button onClick={() => onToggle(match.matchId)} style={{ ...styles.detailButton, transform: isExpanded ? 'rotate(180deg)' : 'none' }} title={isExpanded ? '간략히' : '상세보기'}>▼</button>
           </div>
           <div style={styles.unitsContainer}>
-            {match.units.map((u, idx) => u.image_url &&
+            {match.units.map((u, idx) => u && u.image_url &&
               <Unit key={idx} unit={u} isCompact={false} />
             )}
           </div>
@@ -135,17 +135,7 @@ const MatchCard = ({ match, onToggle, isExpanded }) => {
             isCompact={true}
           />
 
-          <div style={styles.aiAnalysisContainer}>
-            <h4 style={styles.aiAnalysisTitle}>TFTai.gg AI 분석 피드백</h4>
-            {aiLoading && <div style={styles.aiAnalysisLoading}>AI 분석 중입니다...</div>}
-            {aiError && <div style={styles.aiAnalysisError}>{aiError}</div>}
-            {aiAnalysis && !aiLoading && !aiError && (
-              <div>{aiAnalysis}</div>
-            )}
-            {!aiAnalysis && !aiLoading && !aiError && (
-              <div style={styles.aiAnalysisLoading}>매치 분석을 위해 AI 피드백을 요청합니다.</div>
-            )}
-          </div>
+          
         </div>
       )}
     </div>

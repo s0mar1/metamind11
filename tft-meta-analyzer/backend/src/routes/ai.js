@@ -36,7 +36,7 @@ router.post('/analyze', async (req, res, next) => {
       throw new Error("TFT 정적 데이터(특성 맵, 챔피언, 아이템)를 로드할 수 없거나 형식이 올바르지 않습니다.");
     }
     
-    const matchDetail = await getMatchDetail(matchId);
+    const matchDetail = await getMatchDetail(matchId, 'kr');
     if (!matchDetail || !matchDetail.info || !matchDetail.info.participants) {
         console.error('Match detail is incomplete or invalid:', matchDetail);
         return res.status(404).json({ error: '매치 상세 정보를 찾을 수 없습니다.' });
@@ -60,7 +60,13 @@ router.post('/analyze', async (req, res, next) => {
     const userUnits = (userParticipant.units || []).map(u => {
         const champInfo = tftData.champions.find(c => c.apiName.toLowerCase() === u.character_id.toLowerCase());
         const itemNames = (u.itemNames || []).map(itemName => {
-            const itemInfo = tftData.items.find(i => i.apiName.toLowerCase() === itemName.toLowerCase());
+            let itemInfo = null;
+            for (const category in tftData.items) {
+                if (Array.isArray(tftData.items[category])) {
+                    itemInfo = tftData.items[category].find(i => i.apiName?.toLowerCase() === itemName.toLowerCase());
+                    if (itemInfo) break;
+                }
+            }
             return itemInfo ? itemInfo.name : '';
         }).filter(Boolean);
         return `${champInfo ? champInfo.name : u.character_id} (${u.tier}성) [${itemNames.join(', ')}]`;
@@ -78,7 +84,13 @@ router.post('/analyze', async (req, res, next) => {
             const pUnits = (p.units || []).map(u => {
                 const champInfo = tftData.champions.find(c => c.apiName.toLowerCase() === u.character_id.toLowerCase());
                 const itemNames = (u.itemNames || []).map(itemName => {
-                    const itemInfo = tftData.items.find(i => i.apiName.toLowerCase() === itemName.toLowerCase());
+                    let itemInfo = null;
+                    for (const category in tftData.items) {
+                        if (Array.isArray(tftData.items[category])) {
+                            itemInfo = tftData.items[category].find(i => i.apiName?.toLowerCase() === itemName.toLowerCase());
+                            if (itemInfo) break;
+                        }
+                    }
                     return itemInfo ? itemInfo.name : '';
                 }).filter(Boolean);
                 return `${champInfo ? champInfo.name : u.character_id} (${u.tier}성) [${itemNames.join(', ')}]`;

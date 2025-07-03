@@ -123,7 +123,7 @@ export default function GuideDetailPage() {
                         <span className="font-semibold">{itemData.name}</span>
                     </div>
                 )
-            })}}
+            })}
           </div>
         </section>
       </div>
